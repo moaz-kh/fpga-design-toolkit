@@ -207,17 +207,21 @@ ifdef YOSYS
 		exit 1; \
 	fi
 	@echo "Reading source files and synthesizing..."
-	@$(YOSYS) -q -p "\
-		read -f $(FILELIST); \
-		hierarchy -check -top $(TOP_MODULE); \
-		synth_ice40 -top $(TOP_MODULE) -json backend/synth/$(PROJECT)_ice40.json; \
-		stat -top $(TOP_MODULE); \
-		write_verilog backend/synth/$(PROJECT)_ice40_synth.v" \
-		2>&1 | tee backend/reports/$(PROJECT)_ice40_synth.log
+	@# Create Yosys script with individual read_verilog commands (RTL only, no testbenches)
+	@echo "# Auto-generated Yosys script" > backend/synth/yosys_script.ys
+	@# Read only RTL files (before "# Testbench Files" line)
+	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | sed 's/^/read_verilog /' >> backend/synth/yosys_script.ys
+	@echo "hierarchy -check -top $(TOP_MODULE)" >> backend/synth/yosys_script.ys
+	@echo "synth_ice40 -top $(TOP_MODULE) -json backend/synth/$(PROJECT)_ice40.json" >> backend/synth/yosys_script.ys
+	@echo "stat -top $(TOP_MODULE)" >> backend/synth/yosys_script.ys
+	@echo "write_verilog backend/synth/$(PROJECT)_ice40_synth.v" >> backend/synth/yosys_script.ys
+	@# Run Yosys with the script
+	@$(YOSYS) -q -s backend/synth/yosys_script.ys 2>&1 | tee backend/reports/$(PROJECT)_ice40_synth.log
 	@echo "iCE40 synthesis complete!"
 	@echo "   JSON: backend/synth/$(PROJECT)_ice40.json"
 	@echo "   Netlist: backend/synth/$(PROJECT)_ice40_synth.v"
 	@echo "   Log: backend/reports/$(PROJECT)_ice40_synth.log"
+	@echo "   Yosys script: backend/synth/yosys_script.ys"
 else
 	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
 	@exit 1
@@ -234,23 +238,27 @@ ifdef YOSYS
 		exit 1; \
 	fi
 	@echo "Reading source files and synthesizing..."
-	@$(YOSYS) -q -p "\
-		read -f $(FILELIST); \
-		hierarchy -check -top $(TOP_MODULE); \
-		synth_ecp5 -top $(TOP_MODULE) -json backend/synth/$(PROJECT)_ecp5.json; \
-		stat -top $(TOP_MODULE); \
-		write_verilog backend/synth/$(PROJECT)_ecp5_synth.v" \
-		2>&1 | tee backend/reports/$(PROJECT)_ecp5_synth.log
+	@# Create Yosys script with individual read_verilog commands (RTL only, no testbenches)
+	@echo "# Auto-generated Yosys script" > backend/synth/yosys_script_ecp5.ys
+	@# Read only RTL files (before "# Testbench Files" line)
+	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | sed 's/^/read_verilog /' >> backend/synth/yosys_script_ecp5.ys
+	@echo "hierarchy -check -top $(TOP_MODULE)" >> backend/synth/yosys_script_ecp5.ys
+	@echo "synth_ecp5 -top $(TOP_MODULE) -json backend/synth/$(PROJECT)_ecp5.json" >> backend/synth/yosys_script_ecp5.ys
+	@echo "stat -top $(TOP_MODULE)" >> backend/synth/yosys_script_ecp5.ys
+	@echo "write_verilog backend/synth/$(PROJECT)_ecp5_synth.v" >> backend/synth/yosys_script_ecp5.ys
+	@# Run Yosys with the script
+	@$(YOSYS) -q -s backend/synth/yosys_script_ecp5.ys 2>&1 | tee backend/reports/$(PROJECT)_ecp5_synth.log
 	@echo "ECP5 synthesis complete!"
 	@echo "   JSON: backend/synth/$(PROJECT)_ecp5.json"
 	@echo "   Netlist: backend/synth/$(PROJECT)_ecp5_synth.v"
 	@echo "   Log: backend/reports/$(PROJECT)_ecp5_synth.log"
+	@echo "   Yosys script: backend/synth/yosys_script_ecp5.ys"
 else
 	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
 	@exit 1
 endif
 
-# Intel/Altera synthesis (experimental - synthesis only)
+# Intel/Altera synthesis (experimental)
 .PHONY: synth-intel
 synth-intel:
 ifdef YOSYS
@@ -263,18 +271,22 @@ ifdef YOSYS
 	@echo "WARNING: Intel synthesis is experimental and incomplete"
 	@echo "WARNING: Place & route requires Intel Quartus Prime"
 	@echo "Reading source files and synthesizing..."
-	@$(YOSYS) -q -p "\
-		read -f $(FILELIST); \
-		hierarchy -check -top $(TOP_MODULE); \
-		synth_intel -family max10 -top $(TOP_MODULE); \
-		stat -top $(TOP_MODULE); \
-		write_verilog backend/synth/$(PROJECT)_intel_synth.v; \
-		write_json backend/synth/$(PROJECT)_intel.json" \
-		2>&1 | tee backend/reports/$(PROJECT)_intel_synth.log
+	@# Create Yosys script with individual read_verilog commands (RTL only, no testbenches)
+	@echo "# Auto-generated Yosys script" > backend/synth/yosys_script_intel.ys
+	@# Read only RTL files (before "# Testbench Files" line)
+	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | sed 's/^/read_verilog /' >> backend/synth/yosys_script_intel.ys
+	@echo "hierarchy -check -top $(TOP_MODULE)" >> backend/synth/yosys_script_intel.ys
+	@echo "synth_intel -family max10 -top $(TOP_MODULE)" >> backend/synth/yosys_script_intel.ys
+	@echo "stat -top $(TOP_MODULE)" >> backend/synth/yosys_script_intel.ys
+	@echo "write_verilog backend/synth/$(PROJECT)_intel_synth.v" >> backend/synth/yosys_script_intel.ys
+	@echo "write_json backend/synth/$(PROJECT)_intel.json" >> backend/synth/yosys_script_intel.ys
+	@# Run Yosys with the script
+	@$(YOSYS) -q -s backend/synth/yosys_script_intel.ys 2>&1 | tee backend/reports/$(PROJECT)_intel_synth.log
 	@echo "Intel synthesis complete (synthesis only)!"
 	@echo "   JSON: backend/synth/$(PROJECT)_intel.json"
 	@echo "   Netlist: backend/synth/$(PROJECT)_intel_synth.v"
 	@echo "   Log: backend/reports/$(PROJECT)_intel_synth.log"
+	@echo "   Yosys script: backend/synth/yosys_script_intel.ys"
 	@echo "NOTE: Requires Intel Quartus Prime for place & route"
 else
 	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
@@ -293,18 +305,22 @@ ifdef YOSYS
 	fi
 	@echo "WARNING: Xilinx synthesis support is experimental"
 	@echo "Reading source files and synthesizing..."
-	@$(YOSYS) -q -p "\
-		read -f $(FILELIST); \
-		hierarchy -check -top $(TOP_MODULE); \
-		synth_xilinx -top $(TOP_MODULE); \
-		stat -top $(TOP_MODULE); \
-		write_verilog backend/synth/$(PROJECT)_xilinx_synth.v; \
-		write_json backend/synth/$(PROJECT)_xilinx.json" \
-		2>&1 | tee backend/reports/$(PROJECT)_xilinx_synth.log
+	@# Create Yosys script with individual read_verilog commands (RTL only, no testbenches)
+	@echo "# Auto-generated Yosys script" > backend/synth/yosys_script_xilinx.ys
+	@# Read only RTL files (before "# Testbench Files" line)
+	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | sed 's/^/read_verilog /' >> backend/synth/yosys_script_xilinx.ys
+	@echo "hierarchy -check -top $(TOP_MODULE)" >> backend/synth/yosys_script_xilinx.ys
+	@echo "synth_xilinx -top $(TOP_MODULE)" >> backend/synth/yosys_script_xilinx.ys
+	@echo "stat -top $(TOP_MODULE)" >> backend/synth/yosys_script_xilinx.ys
+	@echo "write_verilog backend/synth/$(PROJECT)_xilinx_synth.v" >> backend/synth/yosys_script_xilinx.ys
+	@echo "write_json backend/synth/$(PROJECT)_xilinx.json" >> backend/synth/yosys_script_xilinx.ys
+	@# Run Yosys with the script
+	@$(YOSYS) -q -s backend/synth/yosys_script_xilinx.ys 2>&1 | tee backend/reports/$(PROJECT)_xilinx_synth.log
 	@echo "Xilinx synthesis complete!"
 	@echo "   JSON: backend/synth/$(PROJECT)_xilinx.json"
 	@echo "   Netlist: backend/synth/$(PROJECT)_xilinx_synth.v"
 	@echo "   Log: backend/reports/$(PROJECT)_xilinx_synth.log"
+	@echo "   Yosys script: backend/synth/yosys_script_xilinx.ys"
 	@echo "NOTE: Requires nextpnr-xilinx or Vivado for place & route"
 else
 	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
@@ -322,18 +338,22 @@ ifdef YOSYS
 		exit 1; \
 	fi
 	@echo "Reading source files and synthesizing..."
-	@$(YOSYS) -q -p "\
-		read -f $(FILELIST); \
-		hierarchy -check -top $(TOP_MODULE); \
-		synth -top $(TOP_MODULE); \
-		stat -top $(TOP_MODULE); \
-		write_verilog backend/synth/$(PROJECT)_generic_synth.v; \
-		write_json backend/synth/$(PROJECT)_generic.json" \
-		2>&1 | tee backend/reports/$(PROJECT)_generic_synth.log
+	@# Create Yosys script with individual read_verilog commands (RTL only, no testbenches)
+	@echo "# Auto-generated Yosys script" > backend/synth/yosys_script_generic.ys
+	@# Read only RTL files (before "# Testbench Files" line)
+	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | sed 's/^/read_verilog /' >> backend/synth/yosys_script_generic.ys
+	@echo "hierarchy -check -top $(TOP_MODULE)" >> backend/synth/yosys_script_generic.ys
+	@echo "synth -top $(TOP_MODULE)" >> backend/synth/yosys_script_generic.ys
+	@echo "stat -top $(TOP_MODULE)" >> backend/synth/yosys_script_generic.ys
+	@echo "write_verilog backend/synth/$(PROJECT)_generic_synth.v" >> backend/synth/yosys_script_generic.ys
+	@echo "write_json backend/synth/$(PROJECT)_generic.json" >> backend/synth/yosys_script_generic.ys
+	@# Run Yosys with the script
+	@$(YOSYS) -q -s backend/synth/yosys_script_generic.ys 2>&1 | tee backend/reports/$(PROJECT)_generic_synth.log
 	@echo "Generic synthesis complete!"
 	@echo "   JSON: backend/synth/$(PROJECT)_generic.json"
 	@echo "   Netlist: backend/synth/$(PROJECT)_generic_synth.v"
 	@echo "   Log: backend/reports/$(PROJECT)_generic_synth.log"
+	@echo "   Yosys script: backend/synth/yosys_script_generic.ys"
 else
 	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
 	@exit 1
