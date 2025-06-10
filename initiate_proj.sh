@@ -57,7 +57,7 @@ done
 echo
 echo "Project Configuration:"
 echo "  Name: $PROJECT_NAME"
-echo "  Enhanced Features: [OK] Simulation, [OK] Waveforms, [OK] Auto-examples"
+echo "  Enhanced Features: Simulation, Waveforms, Auto-examples, Standard Modules"
 echo
 read -p "Proceed with project creation? [Y/n]: " -n 1 -r
 echo
@@ -200,19 +200,21 @@ cat > "$PROJECT_NAME/README.md" << EOF
 Enhanced FPGA project with comprehensive simulation and verification capabilities.
 
 ## Features
-- [OK] **Complete simulation workflow** with Icarus Verilog
-- [OK] **Waveform viewing** with GTKWave  
-- [OK] **File list management** using rtl_list.f
-- [OK] **Auto-example generation** with 8-bit adder
-- [OK] **Comprehensive testbenches** with self-checking
-- [OK] **Tool detection and verification**
-- [OK] **One-command testing** with \`make quick-test\`
+- **Complete simulation workflow** with Icarus Verilog
+- **Waveform viewing** with GTKWave  
+- **File list management** using rtl_list.f
+- **Auto-example generation** with 8-bit adder
+- **Standard modules library** (synchronizer, edge_detector, LED_logic, SPI debounce)
+- **Comprehensive testbenches** with self-checking
+- **Tool detection and verification**
+- **One-command testing** with \`make quick-test\`
 
 ## Directory Structure
 \`\`\`
 $PROJECT_NAME/
 ├── sources/           # Source code
 │   ├── rtl/          # RTL source files (.v, .sv)
+│   │   └── STD_MODULES.v  # Standard utility modules
 │   ├── tb/           # Testbenches  
 │   ├── include/      # Include files
 │   ├── constraints/  # Timing/pin constraints (.pcf, .xdc)
@@ -232,6 +234,32 @@ $PROJECT_NAME/
 └── ip/               # Custom IP cores
 \`\`\`
 
+## Standard Modules Library
+
+The project includes \`STD_MODULES.v\` with ready-to-use modules:
+
+### synchronizer
+- **Purpose**: Multi-bit clock domain crossing synchronizer
+- **Parameters**: WIDTH (default: 3 bits)
+- **Usage**: Synchronize signals between clock domains
+
+### edge_detector  
+- **Purpose**: Detect positive and negative edges
+- **Parameters**: sync_sig (0=async input, 1=sync input)
+- **Outputs**: o_pos_edge, o_neg_edge
+
+### LED_logic
+- **Purpose**: Configurable LED blinker/flasher
+- **Parameters**: 
+  - time_count: Total blink duration (50MHz clk cycles)
+  - toggle_count: On/off period (50MHz clk cycles)
+- **Usage**: Status indication, error signaling
+
+### spi_interface_debounce
+- **Purpose**: Debounce SPI signals for reliable operation
+- **Features**: 200MHz system clock, 2-cycle debounce
+- **Signals**: SPI clock, MOSI, CS_n debouncing
+
 ## Quick Start Guide
 
 ### 1. Check tool availability
@@ -250,7 +278,18 @@ This will:
 - Run simulation
 - Open waveforms in GTKWave
 
-### 3. Simulation workflow
+### 3. Use standard modules
+\`\`\`verilog
+// Example: Use synchronizer in your design
+synchronizer #(.WIDTH(8)) sync_inst (
+    .i_clk(clk),
+    .i_rst_n(rst_n),
+    .d_in(async_signal),
+    .d_out(sync_signal)
+);
+\`\`\`
+
+### 4. Simulation workflow
 \`\`\`bash
 # Update file list after adding new files
 make update_list
@@ -265,7 +304,7 @@ make sim-waves
 make waves
 \`\`\`
 
-### 4. Project status
+### 5. Project status
 \`\`\`bash
 make status          # Show project status
 make help            # Show all available targets
@@ -278,6 +317,11 @@ make help            # Show all available targets
 2. Add testbenches to \`sources/tb/\` (named \`*_tb.v\`)
 3. Run \`make update_list\` to refresh file list
 4. Test with \`make sim-waves\`
+
+### Using Standard Modules
+- All standard modules are available in \`STD_MODULES.v\`
+- Include in your designs with module instantiation
+- No need to add to file lists - automatically included
 
 ### Synthesis Workflow
 \`\`\`bash
@@ -361,6 +405,22 @@ touch "$PROJECT_NAME/sources/include/.gitkeep"
 touch "$PROJECT_NAME/sources/constraints/.gitkeep"
 touch "$PROJECT_NAME/vendor/.gitkeep"
 touch "$PROJECT_NAME/ip/.gitkeep"
+
+echo
+echo "================================================"
+echo "Copying Standard Modules"
+echo "================================================"
+
+# Copy STD_MODULES.v to the project
+if [[ -f "STD_MODULES.v" ]]; then
+    echo "Copying STD_MODULES.v to sources/rtl/..."
+    cp "STD_MODULES.v" "$PROJECT_NAME/sources/rtl/"
+    echo "STD_MODULES.v copied successfully"
+    echo "   Available modules: synchronizer, edge_detector, LED_logic, spi_interface_debounce"
+else
+    echo "WARNING: STD_MODULES.v not found in current directory"
+    echo "   Standard modules will not be available in this project"
+fi
 
 echo
 echo "================================================"
@@ -574,19 +634,42 @@ echo "Project: $PROJECT_NAME"
 echo "Location: $(pwd)/$PROJECT_NAME"
 
 echo
+echo "Included Files:"
+if [[ -f "$PROJECT_NAME/sources/rtl/STD_MODULES.v" ]]; then
+    echo "OK: STD_MODULES.v - Standard utility modules"
+else
+    echo "WARNING: STD_MODULES.v - Not available (file not found)"
+fi
+
+if [[ "$EXAMPLE_CREATED" == "true" ]]; then
+    echo "OK: adder.v - Example 8-bit adder"
+    echo "OK: adder_tb.v - Comprehensive testbench"
+fi
+
+echo
+echo "Standard Modules Available:"
+if [[ -f "$PROJECT_NAME/sources/rtl/STD_MODULES.v" ]]; then
+    echo "  • synchronizer - Multi-bit clock domain crossing"
+    echo "  • edge_detector - Positive/negative edge detection"  
+    echo "  • LED_logic - Configurable LED blinker"
+    echo "  • spi_interface_debounce - SPI signal debouncing"
+fi
+
+echo
 echo "Next Steps:"
 if [[ "$EXAMPLE_CREATED" == "true" ]]; then
     echo "  1. cd $PROJECT_NAME"
     echo "  2. make sim-waves        # Test the example adder"
     echo "  3. make status           # Check project status"
     echo "  4. View waveforms in GTKWave"
-    echo "  5. Modify adder.v and adder_tb.v as needed"
+    echo "  5. Explore STD_MODULES.v for ready-to-use components"
 else
     echo "  1. cd $PROJECT_NAME"
     echo "  2. Create your RTL files in sources/rtl/"
-    echo "  3. Create your testbenches in sources/tb/"
-    echo "  4. make update_list      # Update file list"
-    echo "  5. make sim-waves        # Run simulation"
+    echo "  3. Use modules from STD_MODULES.v in your designs"
+    echo "  4. Create your testbenches in sources/tb/"
+    echo "  5. make update_list      # Update file list"
+    echo "  6. make sim-waves        # Run simulation"
 fi
 
 echo
@@ -601,6 +684,146 @@ echo
 echo "Documentation:"
 echo "  README.md contains detailed workflow instructions"
 echo "  Makefile has comprehensive help: make help"
+echo "  STD_MODULES.v contains ready-to-use utility modules"
 
 echo
 echo "Project setup complete!"
+
+# ================================================
+# SUGGESTIONS FOR FUTURE IMPROVEMENTS
+# ================================================
+# This section documents potential enhancements that could be added to this script
+# in the future to provide additional functionality and improved developer experience.
+
+# SUGGESTION 1: VS Code Workspace Setup
+# =====================================
+# Purpose: Enhance VS Code integration with project-specific configuration
+# 
+# Implementation would add:
+# - .vscode/settings.json with Verilog file associations and editor preferences
+# - .vscode/tasks.json integrating Makefile targets (sim, synth, waves) into VS Code GUI
+# - .vscode/launch.json for debugging configurations  
+# - project_name.code-workspace for multi-folder workspace organization
+# - Automatic extension recommendations (Verilog HDL, TerosHDL, etc.)
+#
+# Benefits:
+# - Press Ctrl+Shift+B to run simulation from VS Code
+# - Syntax highlighting for .v/.sv files
+# - Integrated terminal with build commands
+# - Problem panel showing compilation errors
+# - File explorer organized by function (RTL, TB, constraints)
+#
+# Relationship to Makefile:
+# - VS Code setup would CALL existing Makefile targets, not replace them
+# - Provides GUI interface to command-line build system
+# - Works alongside terminal workflow - doesn't break existing usage
+
+# SUGGESTION 2: CI/CD Integration 
+# ===============================
+# Purpose: Automated testing and continuous integration with GoCD
+#
+# Implementation would add:
+# - .gocd/pipeline.yml template for automated testing pipeline
+# - scripts/ci_test.sh for comprehensive automated verification
+# - Integration with existing GoCD Docker setup from project guides
+# - Automated simulation runs on git commits/merges
+# - Test result reporting and artifact collection
+#
+# Benefits:
+# - Automatic verification of all commits
+# - Prevents broken code from entering main branch
+# - Professional development workflow
+# - Integration with existing GoCD infrastructure
+# - Supports team development with shared testing standards
+
+# SUGGESTION 3: Advanced Example Options
+# ======================================
+# Purpose: Provide multiple starting point examples beyond just the adder
+#
+# Implementation would add example choices:
+# 1. 8-bit Adder (current default)
+# 2. 8-bit Counter with enable/reset/overflow
+# 3. Simple UART transmitter with configurable baud rate
+# 4. SPI controller interface with multiple slave support
+# 5. Finite State Machine template (traffic light controller)
+# 6. Clock domain crossing example using standard synchronizer
+# 7. Memory interface controller (simple RAM/ROM)
+#
+# Benefits:
+# - Different starting points for different project types
+# - Educational value - multiple design patterns
+# - Ready-to-customize modules for common requirements
+# - Demonstrates best practices for each application area
+
+# SUGGESTION 4: Tool-Specific Enhancements
+# ========================================
+# Purpose: Better integration with OSS CAD Suite and FPGA-specific flows
+#
+# Implementation would add:
+# - Auto-detection of OSS CAD Suite installation vs individual tools
+# - Automatic PATH configuration for detected tool suites
+# - FPGA family-specific synthesis targets (iCE40, ECP5, Xilinx 7-series)
+# - Board-specific programming scripts and constraints templates
+# - Integration with openFPGALoader for universal programming
+# - Automatic constraint file templates (.pcf, .xdc) for popular boards
+#
+# Benefits:
+# - Seamless integration with comprehensive toolchain setups
+# - Board-specific optimization and programming support
+# - Reduced manual configuration for common development boards
+# - Professional FPGA development workflow out of the box
+
+# SUGGESTION 5: Advanced Project Templates
+# ========================================
+# Purpose: Support different project types beyond basic RTL design
+#
+# Implementation could add project type selection:
+# - Basic RTL Project (current default)
+# - CPU/Processor Design (with instruction set templates)
+# - DSP Project (with filter and signal processing examples)  
+# - Communication Protocol Project (UART, SPI, I2C, Ethernet)
+# - Embedded System Project (CPU + peripherals + software)
+# - Verification Project (focused on testbench development)
+#
+# Each template would include:
+# - Appropriate directory structure
+# - Relevant example modules from that domain
+# - Specialized Makefile targets
+# - Domain-specific documentation templates
+
+# SUGGESTION 6: Documentation Automation
+# ======================================
+# Purpose: Auto-generate comprehensive project documentation
+#
+# Implementation would add:
+# - Automatic module interface documentation extraction
+# - Timing diagram generation from testbench waveforms
+# - Block diagram generation from RTL hierarchy
+# - Integration with documentation tools (Doxygen, Sphinx)
+# - README template customization based on project type
+#
+# Benefits:
+# - Professional documentation standards
+# - Automatic updates as design evolves
+# - Better project maintainability
+# - Integration with version control documentation
+
+# IMPLEMENTATION NOTES:
+# ====================
+# When implementing any of these suggestions:
+# 1. Maintain backward compatibility with existing projects
+# 2. Keep each enhancement optional (user choice)
+# 3. Preserve the simplicity of the base workflow
+# 4. Add comprehensive help/documentation for new features
+# 5. Test integration with existing toolchain guides
+# 6. Consider cross-platform compatibility (Windows WSL2, native Linux)
+
+# PRIORITY RECOMMENDATIONS:
+# =========================
+# Based on typical FPGA development workflows:
+# 1. VS Code Workspace Setup - Most immediate developer experience improvement
+# 2. Advanced Example Options - Educational value and project variety  
+# 3. Tool-Specific Enhancements - Professional toolchain integration
+# 4. CI/CD Integration - Team development and quality assurance
+# 5. Advanced Project Templates - Specialized development workflows
+# 6. Documentation Automation - Long-term project maintainability

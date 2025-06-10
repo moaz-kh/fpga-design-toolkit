@@ -1,9 +1,14 @@
 # Makefile Template for Digital Design Projects
-# Enhanced with simulation and waveform viewing
+# Enhanced with comprehensive FPGA synthesis support and complete workflow automation
 
 PROJECT = PROJECT_NAME_PLACEHOLDER
 TOP_MODULE = adder
 TESTBENCH = adder_tb
+
+# FPGA family configuration - user can modify these
+FPGA_FAMILY ?= ice40
+FPGA_DEVICE ?= hx8k
+FPGA_PACKAGE ?= ct256
 
 # Directories
 RTL_DIR = sources/rtl
@@ -22,8 +27,8 @@ YOSYS := $(shell command -v yosys 2> /dev/null)
 
 # Simulation files
 SIM_TOP = $(SIM_DIR)/$(PROJECT)_sim
-WAVE_FILE = $(WAVE_DIR)/adder_waves.vcd
-FST_FILE = $(WAVE_DIR)/adder_waves.fst
+WAVE_FILE = $(WAVE_DIR)/$(TOP_MODULE)_waves.vcd
+FST_FILE = $(WAVE_DIR)/$(TOP_MODULE)_waves.fst
 
 # Default target
 .PHONY: help
@@ -42,14 +47,24 @@ help:
 	@echo "  sim-waves     - Run simulation and open waveforms"
 	@echo ""
 	@echo "Synthesis targets:"
-	@echo "  synth         - Synthesize with Yosys (basic)"
+	@echo "  synth         - Synthesize for default FPGA family ($(FPGA_FAMILY))"
+	@echo "  synth-ice40   - Synthesize for Lattice iCE40"
+	@echo "  synth-ecp5    - Synthesize for Lattice ECP5"
+	@echo "  synth-intel   - Synthesize for Intel/Altera (experimental)"
+	@echo "  synth-xilinx  - Synthesize for Xilinx (experimental)"
+	@echo "  synth-generic - Generic synthesis (no FPGA target)"
+	@echo "  synth-stats   - Show synthesis statistics"
 	@echo ""
 	@echo "Utility targets:"
 	@echo "  quick-test    - Update list and run simulation"
 	@echo "  clean         - Clean generated files"
 	@echo "  clean-all     - Clean everything including logs"
+	@echo "  status        - Show project status"
 	@echo ""
-	@echo "Status:"
+	@echo "Configuration:"
+	@echo "  FPGA_FAMILY=$(FPGA_FAMILY) (ice40, ecp5, intel, xilinx, generic)"
+	@echo "  FPGA_DEVICE=$(FPGA_DEVICE)"
+	@echo "  FPGA_PACKAGE=$(FPGA_PACKAGE)"
 	@echo "  Top module:   $(TOP_MODULE)"
 	@echo "  Testbench:    $(TESTBENCH)"
 
@@ -57,25 +72,29 @@ help:
 .PHONY: check-tools
 check-tools:
 	@echo "=== Tool Availability Check ==="
+	@echo
+	@echo "Simulation Tools:"
 ifndef IVERILOG
-	@echo "ERROR: Icarus Verilog not found - install with: sudo apt install iverilog"
+	@echo "  ERROR: Icarus Verilog not found - install with: sudo apt install iverilog"
 else
-	@echo "OK: Icarus Verilog: $(IVERILOG)"
+	@echo "  OK: Icarus Verilog: $(IVERILOG)"
 endif
 ifndef GTKWAVE
-	@echo "ERROR: GTKWave not found - install with: sudo apt install gtkwave"
+	@echo "  ERROR: GTKWave not found - install with: sudo apt install gtkwave"
 else
-	@echo "OK: GTKWave: $(GTKWAVE)"
+	@echo "  OK: GTKWave: $(GTKWAVE)"
 endif
 ifdef VERILATOR
-	@echo "OK: Verilator: $(VERILATOR)"
+	@echo "  OK: Verilator: $(VERILATOR)"
 else
-	@echo "INFO: Verilator not found - install with: sudo apt install verilator"
+	@echo "  INFO: Verilator not found - install with: sudo apt install verilator"
 endif
+	@echo
+	@echo "Synthesis Tools:"
 ifdef YOSYS
-	@echo "OK: Yosys: $(YOSYS)"
+	@echo "  OK: Yosys: $(YOSYS)"
 else
-	@echo "INFO: Yosys not found - install with: sudo apt install yosys"
+	@echo "  ERROR: Yosys not found - install with: sudo apt install yosys"
 endif
 
 # Update file list with absolute paths
@@ -107,7 +126,11 @@ sim: $(SIM_TOP)
 	@$(VVP) $(SIM_TOP) | tee $(LOG_DIR)/simulation.log
 	@echo "Simulation complete!"
 	@echo "Log file: $(LOG_DIR)/simulation.log"
-	@echo "Waveform: $(WAVE_FILE)"
+	@if [ -f "$(WAVE_FILE)" ]; then \
+		echo "Waveform: $(WAVE_FILE)"; \
+	elif [ -f "$(FST_FILE)" ]; then \
+		echo "Waveform: $(FST_FILE)"; \
+	fi
 	@echo "View waves: make waves"
 
 # Compile simulation
@@ -166,36 +189,193 @@ waves:
 .PHONY: sim-waves
 sim-waves: sim waves
 
-# Basic synthesis
+# === SYNTHESIS TARGETS ===
+
+# Main synthesis target
 .PHONY: synth
-synth:
+synth: synth-$(FPGA_FAMILY)
+	@echo "Synthesis complete for $(FPGA_FAMILY) family"
+
+# iCE40 synthesis (most mature open source flow)
+.PHONY: synth-ice40
+synth-ice40:
 ifdef YOSYS
-	@echo "Running synthesis..."
-	@mkdir -p backend/synth
+	@echo "Running iCE40 synthesis for $(FPGA_DEVICE)..."
+	@mkdir -p backend/synth backend/reports
 	@if [ ! -s $(FILELIST) ]; then \
-		echo "WARNING: File list is empty. Run 'make update_list' first."; \
+		echo "ERROR: File list is empty. Run 'make update_list' first."; \
 		exit 1; \
 	fi
-	@# Basic synthesis - you may need to customize for your target
-	$(YOSYS) -p "read -f $(FILELIST); hierarchy -top $(TOP_MODULE); synth; write_json backend/synth/$(PROJECT).json"
-	@echo "Synthesis complete: backend/synth/$(PROJECT).json"
+	@echo "Reading source files and synthesizing..."
+	@$(YOSYS) -q -p "\
+		read -f $(FILELIST); \
+		hierarchy -check -top $(TOP_MODULE); \
+		synth_ice40 -top $(TOP_MODULE) -json backend/synth/$(PROJECT)_ice40.json; \
+		stat -top $(TOP_MODULE); \
+		write_verilog backend/synth/$(PROJECT)_ice40_synth.v" \
+		2>&1 | tee backend/reports/$(PROJECT)_ice40_synth.log
+	@echo "iCE40 synthesis complete!"
+	@echo "   JSON: backend/synth/$(PROJECT)_ice40.json"
+	@echo "   Netlist: backend/synth/$(PROJECT)_ice40_synth.v"
+	@echo "   Log: backend/reports/$(PROJECT)_ice40_synth.log"
 else
 	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
+	@exit 1
 endif
+
+# ECP5 synthesis (for larger designs)
+.PHONY: synth-ecp5
+synth-ecp5:
+ifdef YOSYS
+	@echo "Running ECP5 synthesis for $(FPGA_DEVICE)..."
+	@mkdir -p backend/synth backend/reports
+	@if [ ! -s $(FILELIST) ]; then \
+		echo "ERROR: File list is empty. Run 'make update_list' first."; \
+		exit 1; \
+	fi
+	@echo "Reading source files and synthesizing..."
+	@$(YOSYS) -q -p "\
+		read -f $(FILELIST); \
+		hierarchy -check -top $(TOP_MODULE); \
+		synth_ecp5 -top $(TOP_MODULE) -json backend/synth/$(PROJECT)_ecp5.json; \
+		stat -top $(TOP_MODULE); \
+		write_verilog backend/synth/$(PROJECT)_ecp5_synth.v" \
+		2>&1 | tee backend/reports/$(PROJECT)_ecp5_synth.log
+	@echo "ECP5 synthesis complete!"
+	@echo "   JSON: backend/synth/$(PROJECT)_ecp5.json"
+	@echo "   Netlist: backend/synth/$(PROJECT)_ecp5_synth.v"
+	@echo "   Log: backend/reports/$(PROJECT)_ecp5_synth.log"
+else
+	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
+	@exit 1
+endif
+
+# Intel/Altera synthesis (experimental - synthesis only)
+.PHONY: synth-intel
+synth-intel:
+ifdef YOSYS
+	@echo "Running Intel/Altera synthesis (experimental)..."
+	@mkdir -p backend/synth backend/reports
+	@if [ ! -s $(FILELIST) ]; then \
+		echo "ERROR: File list is empty. Run 'make update_list' first."; \
+		exit 1; \
+	fi
+	@echo "WARNING: Intel synthesis is experimental and incomplete"
+	@echo "WARNING: Place & route requires Intel Quartus Prime"
+	@echo "Reading source files and synthesizing..."
+	@$(YOSYS) -q -p "\
+		read -f $(FILELIST); \
+		hierarchy -check -top $(TOP_MODULE); \
+		synth_intel -family max10 -top $(TOP_MODULE); \
+		stat -top $(TOP_MODULE); \
+		write_verilog backend/synth/$(PROJECT)_intel_synth.v; \
+		write_json backend/synth/$(PROJECT)_intel.json" \
+		2>&1 | tee backend/reports/$(PROJECT)_intel_synth.log
+	@echo "Intel synthesis complete (synthesis only)!"
+	@echo "   JSON: backend/synth/$(PROJECT)_intel.json"
+	@echo "   Netlist: backend/synth/$(PROJECT)_intel_synth.v"
+	@echo "   Log: backend/reports/$(PROJECT)_intel_synth.log"
+	@echo "NOTE: Requires Intel Quartus Prime for place & route"
+else
+	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
+	@exit 1
+endif
+
+# Xilinx synthesis (experimental)
+.PHONY: synth-xilinx
+synth-xilinx:
+ifdef YOSYS
+	@echo "Running Xilinx 7-series synthesis (experimental)..."
+	@mkdir -p backend/synth backend/reports
+	@if [ ! -s $(FILELIST) ]; then \
+		echo "ERROR: File list is empty. Run 'make update_list' first."; \
+		exit 1; \
+	fi
+	@echo "WARNING: Xilinx synthesis support is experimental"
+	@echo "Reading source files and synthesizing..."
+	@$(YOSYS) -q -p "\
+		read -f $(FILELIST); \
+		hierarchy -check -top $(TOP_MODULE); \
+		synth_xilinx -top $(TOP_MODULE); \
+		stat -top $(TOP_MODULE); \
+		write_verilog backend/synth/$(PROJECT)_xilinx_synth.v; \
+		write_json backend/synth/$(PROJECT)_xilinx.json" \
+		2>&1 | tee backend/reports/$(PROJECT)_xilinx_synth.log
+	@echo "Xilinx synthesis complete!"
+	@echo "   JSON: backend/synth/$(PROJECT)_xilinx.json"
+	@echo "   Netlist: backend/synth/$(PROJECT)_xilinx_synth.v"
+	@echo "   Log: backend/reports/$(PROJECT)_xilinx_synth.log"
+	@echo "NOTE: Requires nextpnr-xilinx or Vivado for place & route"
+else
+	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
+	@exit 1
+endif
+
+# Generic synthesis (no specific FPGA target)
+.PHONY: synth-generic
+synth-generic:
+ifdef YOSYS
+	@echo "Running generic synthesis..."
+	@mkdir -p backend/synth backend/reports
+	@if [ ! -s $(FILELIST) ]; then \
+		echo "ERROR: File list is empty. Run 'make update_list' first."; \
+		exit 1; \
+	fi
+	@echo "Reading source files and synthesizing..."
+	@$(YOSYS) -q -p "\
+		read -f $(FILELIST); \
+		hierarchy -check -top $(TOP_MODULE); \
+		synth -top $(TOP_MODULE); \
+		stat -top $(TOP_MODULE); \
+		write_verilog backend/synth/$(PROJECT)_generic_synth.v; \
+		write_json backend/synth/$(PROJECT)_generic.json" \
+		2>&1 | tee backend/reports/$(PROJECT)_generic_synth.log
+	@echo "Generic synthesis complete!"
+	@echo "   JSON: backend/synth/$(PROJECT)_generic.json"
+	@echo "   Netlist: backend/synth/$(PROJECT)_generic_synth.v"
+	@echo "   Log: backend/reports/$(PROJECT)_generic_synth.log"
+else
+	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
+	@exit 1
+endif
+
+# Show synthesis statistics
+.PHONY: synth-stats
+synth-stats:
+	@echo "=== Synthesis Statistics ==="
+	@if [ -f "backend/reports/$(PROJECT)_$(FPGA_FAMILY)_synth.log" ]; then \
+		echo "Family: $(FPGA_FAMILY)"; \
+		echo "Device: $(FPGA_DEVICE)"; \
+		echo "Top Module: $(TOP_MODULE)"; \
+		echo ""; \
+		echo "Resource Usage:"; \
+		grep -A 20 "Printing statistics" backend/reports/$(PROJECT)_$(FPGA_FAMILY)_synth.log || echo "Statistics not found"; \
+	else \
+		echo "No synthesis log found. Run 'make synth' first."; \
+	fi
+
+# Clean synthesis outputs
+.PHONY: clean-synth
+clean-synth:
+	@echo "Cleaning synthesis outputs..."
+	rm -f backend/synth/*.json backend/synth/*.v
+	rm -f backend/reports/*_synth.log
+	@echo "Synthesis outputs cleaned!"
 
 # Clean targets
 .PHONY: clean
 clean:
-	@echo "Cleaning simulation files..."
+	@echo "Cleaning simulation and build outputs..."
 	rm -f $(SIM_DIR)/*.vvp
 	rm -f $(WAVE_DIR)/*.vcd $(WAVE_DIR)/*.fst $(WAVE_DIR)/*.lxt*
-	rm -f backend/synth/*.json backend/pnr/*.asc backend/bitstream/*.bin
+	rm -f backend/synth/*.json backend/synth/*.v
 	@echo "Clean complete!"
 
 .PHONY: clean-all
 clean-all: clean
 	@echo "Cleaning all generated files..."
 	rm -f $(LOG_DIR)/*.log
+	rm -f backend/reports/*.log
 	rm -rf $(SIM_DIR)/obj_dir/  # Verilator objects
 	@echo "Deep clean complete!"
 
@@ -206,10 +386,19 @@ status:
 	@echo "Project: $(PROJECT)"
 	@echo "Top module: $(TOP_MODULE)"
 	@echo "Testbench: $(TESTBENCH)"
+	@echo "FPGA Family: $(FPGA_FAMILY)"
+	@echo "FPGA Device: $(FPGA_DEVICE)"
 	@echo ""
 	@echo "Source files:"
 	@find $(RTL_DIR) -name "*.v" -o -name "*.sv" 2>/dev/null | wc -l | awk '{print "  RTL files: " $$1}'
 	@find $(TB_DIR) -name "*_tb.v" -o -name "tb_*.v" 2>/dev/null | wc -l | awk '{print "  Testbenches: " $$1}'
+	@echo ""
+	@echo "Build outputs:"
+	@if [ -f "backend/synth/$(PROJECT)_$(FPGA_FAMILY).json" ]; then \
+		echo "  OK: Synthesis complete"; \
+	else \
+		echo "  NO: No synthesis output"; \
+	fi
 	@echo ""
 	@echo "Available tools:"
 	@make check-tools 2>/dev/null | grep -E "OK:|ERROR:"
@@ -219,4 +408,10 @@ status:
 quick-test: update_list sim-waves
 	@echo "Quick test complete! Simulation finished."
 
-.PHONY: all sim sim-verilator waves sim-waves synth clean clean-all
+.PHONY: all
+all: quick-test
+
+# Make all PHONY targets explicit
+.PHONY: synth synth-ice40 synth-ecp5 synth-intel synth-xilinx synth-generic
+.PHONY: sim sim-verilator waves sim-waves clean clean-all
+.PHONY: clean-synth
