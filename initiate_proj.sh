@@ -274,6 +274,7 @@ make quick-test
 This will:
 - Create example adder RTL (\`sources/rtl/adder.v\`)
 - Create comprehensive testbench (\`sources/tb/adder_tb.v\`)
+- Create iCE40 constraint files (\`sources/constraints/adder.pcf\`)
 - Update file list
 - Run simulation
 - Open waveforms in GTKWave
@@ -335,6 +336,7 @@ make synth
 The auto-generated adder example includes:
 - **8-bit ripple carry adder** with carry input/output
 - **Modular design** using full adder components
+- **iCE40 constraint file** ready for NextPNR (iCEBreaker board pinout)
 - **Comprehensive testbench** with 600+ test cases:
   - Basic functionality tests
   - Random testing (100 cases)
@@ -432,6 +434,7 @@ echo "Do you want to create example adder RTL and testbench files?"
 echo "This will create:"
 echo "  • sources/rtl/adder.v        (8-bit ripple carry adder)"
 echo "  • sources/tb/adder_tb.v      (comprehensive testbench)"
+echo "  • sources/constraints/adder.pcf (iCE40 constraint file)"
 echo
 read -p "Create example files? [Y/n]: " -n 1 -r
 echo
@@ -439,6 +442,53 @@ echo
 if [[ ! $REPLY =~ ^[Nn]$ ]]; then
     echo
     echo "Creating example adder files..."
+    
+    # Create iCE40 constraint file
+    echo "Creating adder.pcf constraint file..."
+    
+    cat > "$PROJECT_NAME/sources/constraints/adder.pcf" << 'EOF'
+# iCE40 PCF Constraints for 8-bit Adder
+# Target: iCEBreaker board (iCE40UP5K)
+
+# Input operand A[7:0]
+set_io a[0] 4
+set_io a[1] 2
+set_io a[2] 47
+set_io a[3] 45
+set_io a[4] 3
+set_io a[5] 48
+set_io a[6] 46
+set_io a[7] 44
+
+# Input operand B[7:0]
+set_io b[0] 43
+set_io b[1] 38
+set_io b[2] 34
+set_io b[3] 31
+set_io b[4] 42
+set_io b[5] 36
+set_io b[6] 32
+set_io b[7] 28
+
+# Carry input
+set_io cin 20
+
+# Sum output[7:0]
+set_io sum[0] 37
+set_io sum[1] 41
+set_io sum[2] 39
+set_io sum[3] 25
+set_io sum[4] 23
+set_io sum[5] 21
+set_io sum[6] 26
+set_io sum[7] 27
+
+# Carry output
+set_io cout 18
+ 
+EOF
+
+    echo "adder.pcf constraint file created"
     
     # Create the adder RTL file
     echo "Creating adder.v..."
@@ -606,6 +656,7 @@ EOF
     echo "Example files created successfully!"
     echo "Created: sources/rtl/adder.v"
     echo "Created: sources/tb/adder_tb.v"
+    echo "Created: sources/constraints/adder.pcf"
     
     # Auto-update the file list
     echo "Updating file list..."
@@ -644,6 +695,7 @@ fi
 if [[ "$EXAMPLE_CREATED" == "true" ]]; then
     echo "OK: adder.v - Example 8-bit adder"
     echo "OK: adder_tb.v - Comprehensive testbench"
+    echo "OK: adder.pcf - iCE40 constraint file"
 fi
 
 echo
@@ -662,7 +714,8 @@ if [[ "$EXAMPLE_CREATED" == "true" ]]; then
     echo "  2. make sim-waves        # Test the example adder"
     echo "  3. make status           # Check project status"
     echo "  4. View waveforms in GTKWave"
-    echo "  5. Explore STD_MODULES.v for ready-to-use components"
+    echo "  5. Ready for NextPNR place & route with adder.pcf!"
+    echo "  6. Explore STD_MODULES.v for ready-to-use components"
 else
     echo "  1. cd $PROJECT_NAME"
     echo "  2. Create your RTL files in sources/rtl/"
@@ -676,8 +729,7 @@ echo
 echo "Available Make Targets:"
 echo "  make help           # Show all available targets"
 echo "  make check-tools    # Verify tool installation"
-echo "  make create-example # Create adder example (if not done)"
-echo "  make quick-test     # Full automated test"
+echo "  make quick-test     # Full automated test with example"
 echo "  make status         # Project status"
 
 echo

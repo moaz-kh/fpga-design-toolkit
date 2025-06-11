@@ -1,14 +1,28 @@
 # Makefile Template for Digital Design Projects
-# Enhanced with comprehensive FPGA synthesis support and complete workflow automation
+# Family-based architecture with iCE40 implementation
 
 PROJECT = PROJECT_NAME_PLACEHOLDER
 TOP_MODULE = adder
 TESTBENCH = adder_tb
 
-# FPGA family configuration - user can modify these
+# FPGA family configuration - extensible for future families
 FPGA_FAMILY ?= ice40
-FPGA_DEVICE ?= hx8k
-FPGA_PACKAGE ?= ct256
+
+# Family-specific defaults (auto-selected based on family)
+ifeq ($(FPGA_FAMILY),ice40)
+    FPGA_DEVICE ?= up5k
+    FPGA_PACKAGE ?= sg48
+else
+    # Future families can be added here
+    # ecp5, intel, xilinx, etc.
+    FPGA_DEVICE ?= generic
+    FPGA_PACKAGE ?= generic
+endif
+
+# Constraint files (family-specific)
+PCF_FILE ?= sources/constraints/$(TOP_MODULE).pcf
+LPF_FILE ?= sources/constraints/$(TOP_MODULE).lpf
+XDC_FILE ?= sources/constraints/$(TOP_MODULE).xdc
 
 # Directories
 RTL_DIR = sources/rtl
@@ -18,61 +32,107 @@ WAVE_DIR = $(SIM_DIR)/waves
 LOG_DIR = $(SIM_DIR)/logs
 FILELIST = sources/rtl_list.f
 
-# Tools - auto-detect available simulators
+# Backend directories
+SYNTH_DIR = backend/synth
+PNR_DIR = backend/pnr
+BITSTREAM_DIR = backend/bitstream
+REPORTS_DIR = backend/reports
+
+# Tools - auto-detect available tools
 IVERILOG := $(shell command -v iverilog 2> /dev/null)
 VVP := $(shell command -v vvp 2> /dev/null)
 VERILATOR := $(shell command -v verilator 2> /dev/null)
 GTKWAVE := $(shell command -v gtkwave 2> /dev/null)
 YOSYS := $(shell command -v yosys 2> /dev/null)
 
+# Family-specific tool detection
+NEXTPNR_ICE40 := $(shell command -v nextpnr-ice40 2> /dev/null)
+ICEPACK := $(shell command -v icepack 2> /dev/null)
+ICEPROG := $(shell command -v iceprog 2> /dev/null)
+ICETIME := $(shell command -v icetime 2> /dev/null)
+
+# Future family tools can be added here
+# NEXTPNR_ECP5 := $(shell command -v nextpnr-ecp5 2> /dev/null)
+# ECPPACK := $(shell command -v ecppack 2> /dev/null)
+
+OPENFPGALOADER := $(shell command -v openFPGALoader 2> /dev/null)
+
 # Simulation files
 SIM_TOP = $(SIM_DIR)/$(PROJECT)_sim
 WAVE_FILE = $(WAVE_DIR)/$(TOP_MODULE)_waves.vcd
 FST_FILE = $(WAVE_DIR)/$(TOP_MODULE)_waves.fst
+
+# Family-specific output files (extensible naming scheme)
+ICE40_JSON = $(SYNTH_DIR)/$(PROJECT)_ice40.json
+ICE40_ASC = $(PNR_DIR)/$(PROJECT)_ice40.asc
+ICE40_BIN = $(BITSTREAM_DIR)/$(PROJECT)_ice40.bin
+
+# Future family files can be added here
+# ECP5_JSON = $(SYNTH_DIR)/$(PROJECT)_ecp5.json
+# ECP5_CONFIG = $(PNR_DIR)/$(PROJECT)_ecp5.config
+# ECP5_BIT = $(BITSTREAM_DIR)/$(PROJECT)_ecp5.bit
 
 # Default target
 .PHONY: help
 help:
 	@echo "=== $(PROJECT) Build System ==="
 	@echo ""
-	@echo "Available targets:"
+	@echo "Current Configuration:"
+	@echo "  FPGA_FAMILY=$(FPGA_FAMILY)"
+	@echo "  FPGA_DEVICE=$(FPGA_DEVICE)"
+	@echo "  FPGA_PACKAGE=$(FPGA_PACKAGE)"
+	@echo "  Top module: $(TOP_MODULE)"
+	@echo "  Testbench:  $(TESTBENCH)"
+	@echo ""
+	@echo "Basic targets:"
 	@echo "  help          - Show this help"
 	@echo "  check-tools   - Check available tools"
 	@echo "  update_list   - Update rtl_list.f with current source files"
+	@echo "  status        - Show project and tool status"
 	@echo ""
 	@echo "Simulation targets:"
 	@echo "  sim           - Run simulation with Icarus Verilog"
-	@echo "  sim-verilator - Run simulation with Verilator (if available)"
 	@echo "  waves         - View waveforms with GTKWave"
 	@echo "  sim-waves     - Run simulation and open waveforms"
 	@echo ""
-	@echo "Synthesis targets:"
-	@echo "  synth         - Synthesize for default FPGA family ($(FPGA_FAMILY))"
+	@echo "Complete workflow targets:"
+	@echo "  all           - Complete flow for current family: synth -> pnr -> bitstream"
+	@echo "  quick-test    - Update list and run simulation"
+	@echo ""
+	@echo "=== FPGA WORKFLOW TARGETS ==="
+	@echo ""
+	@echo "Generic targets (delegate to family-specific):"
+	@echo "  synth         - Synthesize for current FPGA family ($(FPGA_FAMILY))"
+	@echo "  pnr           - Place and route for current family"
+	@echo "  timing        - Generate timing report for current family"
+	@echo "  bitstream     - Generate bitstream for current family"
+	@echo "  prog          - Program device with current family bitstream"
+	@echo ""
+	@echo "Family-specific targets:"
 	@echo "  synth-ice40   - Synthesize for Lattice iCE40"
-	@echo "  synth-ecp5    - Synthesize for Lattice ECP5"
-	@echo "  synth-intel   - Synthesize for Intel/Altera (experimental)"
-	@echo "  synth-xilinx  - Synthesize for Xilinx (experimental)"
-	@echo "  synth-generic - Generic synthesis (no FPGA target)"
-	@echo "  synth-stats   - Show synthesis statistics"
+	@echo "  pnr-ice40     - Place and route for iCE40"
+	@echo "  timing-ice40  - iCE40 timing analysis"
+	@echo "  bitstream-ice40 - Generate iCE40 bitstream"
+	@echo "  prog-ice40    - Program iCE40 device"
+	@echo ""
+	@echo "Family workflow shortcuts:"
+	@echo "  ice40         - Complete iCE40 flow (synth+pnr+timing+bitstream)"
 	@echo ""
 	@echo "Utility targets:"
-	@echo "  quick-test    - Update list and run simulation"
 	@echo "  clean         - Clean generated files"
 	@echo "  clean-all     - Clean everything including logs"
-	@echo "  status        - Show project status"
 	@echo ""
-	@echo "Configuration:"
-	@echo "  FPGA_FAMILY=$(FPGA_FAMILY) (ice40, ecp5, intel, xilinx, generic)"
-	@echo "  FPGA_DEVICE=$(FPGA_DEVICE)"
-	@echo "  FPGA_PACKAGE=$(FPGA_PACKAGE)"
-	@echo "  Top module:   $(TOP_MODULE)"
-	@echo "  Testbench:    $(TESTBENCH)"
+	@echo "Supported families: ice40"
+	@echo "Future families: ecp5, intel, xilinx (to be implemented)"
 
-# Check available tools
+# === TOOL CHECKING ===
+
 .PHONY: check-tools
 check-tools:
 	@echo "=== Tool Availability Check ==="
-	@echo
+	@echo ""
+	@echo "Current family: $(FPGA_FAMILY)"
+	@echo ""
 	@echo "Simulation Tools:"
 ifndef IVERILOG
 	@echo "  ERROR: Icarus Verilog not found - install with: sudo apt install iverilog"
@@ -89,15 +149,50 @@ ifdef VERILATOR
 else
 	@echo "  INFO: Verilator not found - install with: sudo apt install verilator"
 endif
-	@echo
+	@echo ""
 	@echo "Synthesis Tools:"
 ifdef YOSYS
 	@echo "  OK: Yosys: $(YOSYS)"
 else
 	@echo "  ERROR: Yosys not found - install with: sudo apt install yosys"
 endif
+	@echo ""
+	@echo "Family-specific tools:"
+	@echo ""
+	@echo "iCE40 Tools:"
+ifdef NEXTPNR_ICE40
+	@echo "  OK: NextPNR-iCE40: $(NEXTPNR_ICE40)"
+else
+	@echo "  ERROR: NextPNR-iCE40 not found - install with: sudo apt install nextpnr-ice40"
+endif
+ifdef ICEPACK
+	@echo "  OK: icepack: $(ICEPACK)"
+else
+	@echo "  ERROR: icepack not found - install with: sudo apt install fpga-icestorm"
+endif
+ifdef ICEPROG
+	@echo "  OK: iceprog: $(ICEPROG)"
+else
+	@echo "  INFO: iceprog not found - install with: sudo apt install fpga-icestorm"
+endif
+ifdef ICETIME
+	@echo "  OK: icetime: $(ICETIME)"
+else
+	@echo "  ERROR: icetime not found - install with: sudo apt install fpga-icestorm"
+endif
+	@echo ""
+	@echo "Universal Programming Tools:"
+ifdef OPENFPGALOADER
+	@echo "  OK: openFPGALoader: $(OPENFPGALOADER)"
+else
+	@echo "  INFO: openFPGALoader not found - universal programmer (optional)"
+endif
+	@echo ""
+	@echo "Future family tools (not implemented yet):"
+	@echo "  INFO: ECP5, Intel, Xilinx tools will be checked when implemented"
 
-# Update file list with absolute paths
+# === FILE LIST MANAGEMENT ===
+
 .PHONY: update_list
 update_list:
 	@echo "Updating rtl_list.f with current source files..."
@@ -114,7 +209,8 @@ update_list:
 	@echo "File list updated: $(FILELIST)"
 	@echo "Found $(shell grep -c '^/' $(FILELIST) 2>/dev/null || echo 0) files"
 
-# Icarus Verilog simulation
+# === SIMULATION TARGETS ===
+
 .PHONY: sim
 sim: $(SIM_TOP)
 	@if [ -z "$(IVERILOG)" ]; then \
@@ -125,15 +221,14 @@ sim: $(SIM_TOP)
 	@mkdir -p $(LOG_DIR)
 	@$(VVP) $(SIM_TOP) | tee $(LOG_DIR)/simulation.log
 	@echo "Simulation complete!"
-	@echo "Log file: $(LOG_DIR)/simulation.log"
+	@echo "   Log file: $(LOG_DIR)/simulation.log"
 	@if [ -f "$(WAVE_FILE)" ]; then \
-		echo "Waveform: $(WAVE_FILE)"; \
+		echo "   Waveform: $(WAVE_FILE)"; \
 	elif [ -f "$(FST_FILE)" ]; then \
-		echo "Waveform: $(FST_FILE)"; \
+		echo "   Waveform: $(FST_FILE)"; \
 	fi
 	@echo "View waves: make waves"
 
-# Compile simulation
 $(SIM_TOP): $(FILELIST)
 	@if [ -z "$(IVERILOG)" ]; then \
 		echo "ERROR: Icarus Verilog not found"; \
@@ -154,19 +249,6 @@ $(SIM_TOP): $(FILELIST)
 	@$(IVERILOG) -g2005 -f $(FILELIST) -s $(TESTBENCH) -o $(SIM_TOP)
 	@echo "Compilation successful!"
 
-# Verilator simulation (if available)
-.PHONY: sim-verilator
-sim-verilator:
-ifdef VERILATOR
-	@echo "Running Verilator simulation..."
-	@mkdir -p $(SIM_DIR) $(WAVE_DIR) $(LOG_DIR)
-	@echo "WARNING: Verilator simulation target needs implementation"
-	@echo "TIP: This would require C++ testbench generation"
-else
-	@echo "ERROR: Verilator not available. Install with: sudo apt install verilator"
-endif
-
-# View waveforms
 .PHONY: waves
 waves:
 	@if [ -z "$(GTKWAVE)" ]; then \
@@ -185,221 +267,206 @@ waves:
 		exit 1; \
 	fi
 
-# Run simulation and open waveforms
 .PHONY: sim-waves
 sim-waves: sim waves
 
-# === SYNTHESIS TARGETS ===
+# === GENERIC TARGETS (DELEGATE TO FAMILY-SPECIFIC) ===
 
-# Main synthesis target
 .PHONY: synth
 synth: synth-$(FPGA_FAMILY)
 	@echo "Synthesis complete for $(FPGA_FAMILY) family"
 
-# iCE40 synthesis (most mature open source flow)
+.PHONY: pnr
+pnr: pnr-$(FPGA_FAMILY)
+	@echo "Place and route complete for $(FPGA_FAMILY) family"
+
+.PHONY: timing
+timing: timing-$(FPGA_FAMILY)
+	@echo "Timing analysis complete for $(FPGA_FAMILY) family"
+
+.PHONY: bitstream
+bitstream: bitstream-$(FPGA_FAMILY)
+	@echo "Bitstream generation complete for $(FPGA_FAMILY) family"
+
+.PHONY: prog
+prog: prog-$(FPGA_FAMILY)
+	@echo "Programming complete for $(FPGA_FAMILY) family"
+
+# === FAMILY-SPECIFIC TARGETS ===
+
+# === iCE40 FAMILY IMPLEMENTATION ===
+
 .PHONY: synth-ice40
+synth-ice40: FPGA_FAMILY=ice40
+synth-ice40: FPGA_DEVICE=up5k
+synth-ice40: FPGA_PACKAGE=sg48
+synth-ice40: ICE40_JSON=$(SYNTH_DIR)/$(PROJECT)_ice40.json
 synth-ice40:
 ifdef YOSYS
-	@echo "Running iCE40 synthesis for $(FPGA_DEVICE)..."
-	@mkdir -p backend/synth backend/reports
+	@echo "Running iCE40 synthesis for $(FPGA_DEVICE) ($(FPGA_PACKAGE))..."
+	@mkdir -p $(SYNTH_DIR) $(REPORTS_DIR)
 	@if [ ! -s $(FILELIST) ]; then \
 		echo "ERROR: File list is empty. Run 'make update_list' first."; \
 		exit 1; \
 	fi
+	@echo "Auto-configured: Family=$(FPGA_FAMILY), Device=$(FPGA_DEVICE), Package=$(FPGA_PACKAGE)"
 	@echo "Reading source files and synthesizing..."
-	@# Create Yosys script with individual read_verilog commands (RTL only, no testbenches)
-	@echo "# Auto-generated Yosys script" > backend/synth/yosys_script.ys
-	@# Read only RTL files (before "# Testbench Files" line)
-	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | sed 's/^/read_verilog /' >> backend/synth/yosys_script.ys
-	@echo "hierarchy -check -top $(TOP_MODULE)" >> backend/synth/yosys_script.ys
-	@echo "synth_ice40 -top $(TOP_MODULE) -json backend/synth/$(PROJECT)_ice40.json" >> backend/synth/yosys_script.ys
-	@echo "stat -top $(TOP_MODULE)" >> backend/synth/yosys_script.ys
-	@echo "write_verilog backend/synth/$(PROJECT)_ice40_synth.v" >> backend/synth/yosys_script.ys
-	@# Run Yosys with the script
-	@$(YOSYS) -q -s backend/synth/yosys_script.ys 2>&1 | tee backend/reports/$(PROJECT)_ice40_synth.log
+	@echo "# Auto-generated Yosys script for iCE40" > $(SYNTH_DIR)/yosys_script_ice40.ys
+	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | sed 's/^/read_verilog /' >> $(SYNTH_DIR)/yosys_script_ice40.ys
+	@echo "hierarchy -check -top $(TOP_MODULE)" >> $(SYNTH_DIR)/yosys_script_ice40.ys
+	@echo "synth_ice40 -top $(TOP_MODULE) -json $(ICE40_JSON)" >> $(SYNTH_DIR)/yosys_script_ice40.ys
+	@echo "stat -top $(TOP_MODULE)" >> $(SYNTH_DIR)/yosys_script_ice40.ys
+	@echo "write_verilog $(SYNTH_DIR)/$(PROJECT)_ice40_synth.v" >> $(SYNTH_DIR)/yosys_script_ice40.ys
+	@$(YOSYS) -q -s $(SYNTH_DIR)/yosys_script_ice40.ys 2>&1 | tee $(REPORTS_DIR)/$(PROJECT)_ice40_synth.log
 	@echo "iCE40 synthesis complete!"
-	@echo "   JSON: backend/synth/$(PROJECT)_ice40.json"
-	@echo "   Netlist: backend/synth/$(PROJECT)_ice40_synth.v"
-	@echo "   Log: backend/reports/$(PROJECT)_ice40_synth.log"
-	@echo "   Yosys script: backend/synth/yosys_script.ys"
+	@echo "   Device: $(FPGA_DEVICE) ($(FPGA_PACKAGE))"
+	@echo "   JSON: $(ICE40_JSON)"
+	@echo "   Netlist: $(SYNTH_DIR)/$(PROJECT)_ice40_synth.v"
+	@echo "   Log: $(REPORTS_DIR)/$(PROJECT)_ice40_synth.log"
 else
 	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
 	@exit 1
 endif
 
-# ECP5 synthesis (for larger designs)
-.PHONY: synth-ecp5
-synth-ecp5:
-ifdef YOSYS
-	@echo "Running ECP5 synthesis for $(FPGA_DEVICE)..."
-	@mkdir -p backend/synth backend/reports
-	@if [ ! -s $(FILELIST) ]; then \
-		echo "ERROR: File list is empty. Run 'make update_list' first."; \
+.PHONY: pnr-ice40
+pnr-ice40: FPGA_FAMILY=ice40
+pnr-ice40: FPGA_DEVICE=up5k
+pnr-ice40: FPGA_PACKAGE=sg48
+pnr-ice40: ICE40_JSON=$(SYNTH_DIR)/$(PROJECT)_ice40.json
+pnr-ice40: ICE40_ASC=$(PNR_DIR)/$(PROJECT)_ice40.asc
+pnr-ice40: PCF_FILE=sources/constraints/$(TOP_MODULE).pcf
+pnr-ice40:
+ifdef NEXTPNR_ICE40
+	@if [ ! -f "$(ICE40_JSON)" ]; then \
+		echo "ERROR: Synthesis output $(ICE40_JSON) not found. Run 'make synth-ice40' first."; \
 		exit 1; \
 	fi
-	@echo "Reading source files and synthesizing..."
-	@# Create Yosys script with individual read_verilog commands (RTL only, no testbenches)
-	@echo "# Auto-generated Yosys script" > backend/synth/yosys_script_ecp5.ys
-	@# Read only RTL files (before "# Testbench Files" line)
-	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | sed 's/^/read_verilog /' >> backend/synth/yosys_script_ecp5.ys
-	@echo "hierarchy -check -top $(TOP_MODULE)" >> backend/synth/yosys_script_ecp5.ys
-	@echo "synth_ecp5 -top $(TOP_MODULE) -json backend/synth/$(PROJECT)_ecp5.json" >> backend/synth/yosys_script_ecp5.ys
-	@echo "stat -top $(TOP_MODULE)" >> backend/synth/yosys_script_ecp5.ys
-	@echo "write_verilog backend/synth/$(PROJECT)_ecp5_synth.v" >> backend/synth/yosys_script_ecp5.ys
-	@# Run Yosys with the script
-	@$(YOSYS) -q -s backend/synth/yosys_script_ecp5.ys 2>&1 | tee backend/reports/$(PROJECT)_ecp5_synth.log
-	@echo "ECP5 synthesis complete!"
-	@echo "   JSON: backend/synth/$(PROJECT)_ecp5.json"
-	@echo "   Netlist: backend/synth/$(PROJECT)_ecp5_synth.v"
-	@echo "   Log: backend/reports/$(PROJECT)_ecp5_synth.log"
-	@echo "   Yosys script: backend/synth/yosys_script_ecp5.ys"
-else
-	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
-	@exit 1
-endif
-
-# Intel/Altera synthesis (experimental)
-.PHONY: synth-intel
-synth-intel:
-ifdef YOSYS
-	@echo "Running Intel/Altera synthesis (experimental)..."
-	@mkdir -p backend/synth backend/reports
-	@if [ ! -s $(FILELIST) ]; then \
-		echo "ERROR: File list is empty. Run 'make update_list' first."; \
-		exit 1; \
-	fi
-	@echo "WARNING: Intel synthesis is experimental and incomplete"
-	@echo "WARNING: Place & route requires Intel Quartus Prime"
-	@echo "Reading source files and synthesizing..."
-	@# Create Yosys script with individual read_verilog commands (RTL only, no testbenches)
-	@echo "# Auto-generated Yosys script" > backend/synth/yosys_script_intel.ys
-	@# Read only RTL files (before "# Testbench Files" line)
-	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | sed 's/^/read_verilog /' >> backend/synth/yosys_script_intel.ys
-	@echo "hierarchy -check -top $(TOP_MODULE)" >> backend/synth/yosys_script_intel.ys
-	@echo "synth_intel -family max10 -top $(TOP_MODULE)" >> backend/synth/yosys_script_intel.ys
-	@echo "stat -top $(TOP_MODULE)" >> backend/synth/yosys_script_intel.ys
-	@echo "write_verilog backend/synth/$(PROJECT)_intel_synth.v" >> backend/synth/yosys_script_intel.ys
-	@echo "write_json backend/synth/$(PROJECT)_intel.json" >> backend/synth/yosys_script_intel.ys
-	@# Run Yosys with the script
-	@$(YOSYS) -q -s backend/synth/yosys_script_intel.ys 2>&1 | tee backend/reports/$(PROJECT)_intel_synth.log
-	@echo "Intel synthesis complete (synthesis only)!"
-	@echo "   JSON: backend/synth/$(PROJECT)_intel.json"
-	@echo "   Netlist: backend/synth/$(PROJECT)_intel_synth.v"
-	@echo "   Log: backend/reports/$(PROJECT)_intel_synth.log"
-	@echo "   Yosys script: backend/synth/yosys_script_intel.ys"
-	@echo "NOTE: Requires Intel Quartus Prime for place & route"
-else
-	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
-	@exit 1
-endif
-
-# Xilinx synthesis (experimental)
-.PHONY: synth-xilinx
-synth-xilinx:
-ifdef YOSYS
-	@echo "Running Xilinx 7-series synthesis (experimental)..."
-	@mkdir -p backend/synth backend/reports
-	@if [ ! -s $(FILELIST) ]; then \
-		echo "ERROR: File list is empty. Run 'make update_list' first."; \
-		exit 1; \
-	fi
-	@echo "WARNING: Xilinx synthesis support is experimental"
-	@echo "Reading source files and synthesizing..."
-	@# Create Yosys script with individual read_verilog commands (RTL only, no testbenches)
-	@echo "# Auto-generated Yosys script" > backend/synth/yosys_script_xilinx.ys
-	@# Read only RTL files (before "# Testbench Files" line)
-	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | sed 's/^/read_verilog /' >> backend/synth/yosys_script_xilinx.ys
-	@echo "hierarchy -check -top $(TOP_MODULE)" >> backend/synth/yosys_script_xilinx.ys
-	@echo "synth_xilinx -top $(TOP_MODULE)" >> backend/synth/yosys_script_xilinx.ys
-	@echo "stat -top $(TOP_MODULE)" >> backend/synth/yosys_script_xilinx.ys
-	@echo "write_verilog backend/synth/$(PROJECT)_xilinx_synth.v" >> backend/synth/yosys_script_xilinx.ys
-	@echo "write_json backend/synth/$(PROJECT)_xilinx.json" >> backend/synth/yosys_script_xilinx.ys
-	@# Run Yosys with the script
-	@$(YOSYS) -q -s backend/synth/yosys_script_xilinx.ys 2>&1 | tee backend/reports/$(PROJECT)_xilinx_synth.log
-	@echo "Xilinx synthesis complete!"
-	@echo "   JSON: backend/synth/$(PROJECT)_xilinx.json"
-	@echo "   Netlist: backend/synth/$(PROJECT)_xilinx_synth.v"
-	@echo "   Log: backend/reports/$(PROJECT)_xilinx_synth.log"
-	@echo "   Yosys script: backend/synth/yosys_script_xilinx.ys"
-	@echo "NOTE: Requires nextpnr-xilinx or Vivado for place & route"
-else
-	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
-	@exit 1
-endif
-
-# Generic synthesis (no specific FPGA target)
-.PHONY: synth-generic
-synth-generic:
-ifdef YOSYS
-	@echo "Running generic synthesis..."
-	@mkdir -p backend/synth backend/reports
-	@if [ ! -s $(FILELIST) ]; then \
-		echo "ERROR: File list is empty. Run 'make update_list' first."; \
-		exit 1; \
-	fi
-	@echo "Reading source files and synthesizing..."
-	@# Create Yosys script with individual read_verilog commands (RTL only, no testbenches)
-	@echo "# Auto-generated Yosys script" > backend/synth/yosys_script_generic.ys
-	@# Read only RTL files (before "# Testbench Files" line)
-	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | sed 's/^/read_verilog /' >> backend/synth/yosys_script_generic.ys
-	@echo "hierarchy -check -top $(TOP_MODULE)" >> backend/synth/yosys_script_generic.ys
-	@echo "synth -top $(TOP_MODULE)" >> backend/synth/yosys_script_generic.ys
-	@echo "stat -top $(TOP_MODULE)" >> backend/synth/yosys_script_generic.ys
-	@echo "write_verilog backend/synth/$(PROJECT)_generic_synth.v" >> backend/synth/yosys_script_generic.ys
-	@echo "write_json backend/synth/$(PROJECT)_generic.json" >> backend/synth/yosys_script_generic.ys
-	@# Run Yosys with the script
-	@$(YOSYS) -q -s backend/synth/yosys_script_generic.ys 2>&1 | tee backend/reports/$(PROJECT)_generic_synth.log
-	@echo "Generic synthesis complete!"
-	@echo "   JSON: backend/synth/$(PROJECT)_generic.json"
-	@echo "   Netlist: backend/synth/$(PROJECT)_generic_synth.v"
-	@echo "   Log: backend/reports/$(PROJECT)_generic_synth.log"
-	@echo "   Yosys script: backend/synth/yosys_script_generic.ys"
-else
-	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
-	@exit 1
-endif
-
-# Show synthesis statistics
-.PHONY: synth-stats
-synth-stats:
-	@echo "=== Synthesis Statistics ==="
-	@if [ -f "backend/reports/$(PROJECT)_$(FPGA_FAMILY)_synth.log" ]; then \
-		echo "Family: $(FPGA_FAMILY)"; \
-		echo "Device: $(FPGA_DEVICE)"; \
-		echo "Top Module: $(TOP_MODULE)"; \
-		echo ""; \
-		echo "Resource Usage:"; \
-		grep -A 20 "Printing statistics" backend/reports/$(PROJECT)_$(FPGA_FAMILY)_synth.log || echo "Statistics not found"; \
+	@echo "Running iCE40 place and route for $(FPGA_DEVICE) ($(FPGA_PACKAGE))..."
+	@mkdir -p $(PNR_DIR) $(REPORTS_DIR)
+	@echo "Auto-configured: Family=$(FPGA_FAMILY), Device=$(FPGA_DEVICE), Package=$(FPGA_PACKAGE)"
+	@if [ ! -f "$(PCF_FILE)" ]; then \
+		echo "WARNING: Constraint file $(PCF_FILE) not found"; \
+		echo "Running without constraints (I/O pins will be auto-assigned)"; \
+		$(NEXTPNR_ICE40) --$(FPGA_DEVICE) --package $(FPGA_PACKAGE) \
+			--json $(ICE40_JSON) --asc $(ICE40_ASC) \
+			--report $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.json 2>&1 | tee $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.log; \
 	else \
-		echo "No synthesis log found. Run 'make synth' first."; \
+		echo "Using constraint file: $(PCF_FILE)"; \
+		$(NEXTPNR_ICE40) --$(FPGA_DEVICE) --package $(FPGA_PACKAGE) \
+			--json $(ICE40_JSON) --pcf $(PCF_FILE) --asc $(ICE40_ASC) \
+			--report $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.json 2>&1 | tee $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.log; \
 	fi
+	@echo "iCE40 place and route complete!"
+	@echo "   Device: $(FPGA_DEVICE) ($(FPGA_PACKAGE))"
+	@echo "   ASC: $(ICE40_ASC)"
+	@echo "   Report: $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.json"
+	@echo "   Log: $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.log"
+else
+	@echo "ERROR: NextPNR-iCE40 not available. Install with: sudo apt install nextpnr-ice40"
+	@exit 1
+endif
 
-# Clean synthesis outputs
-.PHONY: clean-synth
-clean-synth:
-	@echo "Cleaning synthesis outputs..."
-	rm -f backend/synth/*.json backend/synth/*.v
-	rm -f backend/reports/*_synth.log
-	@echo "Synthesis outputs cleaned!"
+.PHONY: timing-ice40
+timing-ice40: FPGA_FAMILY=ice40
+timing-ice40: FPGA_DEVICE=up5k
+timing-ice40: ICE40_ASC=$(PNR_DIR)/$(PROJECT)_ice40.asc
+timing-ice40:
+ifdef ICETIME
+	@if [ ! -f "$(ICE40_ASC)" ]; then \
+		echo "ERROR: PnR output $(ICE40_ASC) not found. Run 'make pnr-ice40' first."; \
+		exit 1; \
+	fi
+	@echo "Running iCE40 timing analysis for $(FPGA_DEVICE)..."
+	@mkdir -p $(REPORTS_DIR)
+	@icetime -d $(FPGA_DEVICE) -mtr $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt $(ICE40_ASC) 2>&1 | tee $(REPORTS_DIR)/$(PROJECT)_ice40_timing.log
+	@echo "Timing analysis complete!"
+	@echo "   Device: $(FPGA_DEVICE)"
+	@echo "   Report: $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt"
+	@echo "   Log: $(REPORTS_DIR)/$(PROJECT)_ice40_timing.log"
+	@echo ""
+	@echo "Timing Summary:"
+	@grep -E "Total path delay|Max frequency" $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt || echo "Check full report for timing details"
+else
+	@echo "ERROR: icetime not available. Install with: sudo apt install fpga-icestorm"
+	@exit 1
+endif
 
-# Clean targets
-.PHONY: clean
-clean:
-	@echo "Cleaning simulation and build outputs..."
-	rm -f $(SIM_DIR)/*.vvp
-	rm -f $(WAVE_DIR)/*.vcd $(WAVE_DIR)/*.fst $(WAVE_DIR)/*.lxt*
-	rm -f backend/synth/*.json backend/synth/*.v
-	@echo "Clean complete!"
+.PHONY: bitstream-ice40
+bitstream-ice40: FPGA_FAMILY=ice40
+bitstream-ice40: FPGA_DEVICE=up5k
+bitstream-ice40: ICE40_ASC=$(PNR_DIR)/$(PROJECT)_ice40.asc
+bitstream-ice40: ICE40_BIN=$(BITSTREAM_DIR)/$(PROJECT)_ice40.bin
+bitstream-ice40:
+ifdef ICEPACK
+	@if [ ! -f "$(ICE40_ASC)" ]; then \
+		echo "ERROR: PnR output $(ICE40_ASC) not found. Run 'make pnr-ice40' first."; \
+		exit 1; \
+	fi
+	@echo "Generating iCE40 bitstream for $(FPGA_DEVICE)..."
+	@mkdir -p $(BITSTREAM_DIR)
+	@icepack $(ICE40_ASC) $(ICE40_BIN)
+	@echo "iCE40 bitstream generation complete!"
+	@echo "   Device: $(FPGA_DEVICE)"
+	@echo "   Bitstream: $(ICE40_BIN)"
+	@echo "   Size: $(shell ls -lh $(ICE40_BIN) | awk '{print $$5}') ($(shell wc -c < $(ICE40_BIN)) bytes)"
+else
+	@echo "ERROR: icepack not available. Install with: sudo apt install fpga-icestorm"
+	@exit 1
+endif
 
-.PHONY: clean-all
-clean-all: clean
-	@echo "Cleaning all generated files..."
-	rm -f $(LOG_DIR)/*.log
-	rm -f backend/reports/*.log
-	rm -rf $(SIM_DIR)/obj_dir/  # Verilator objects
-	@echo "Deep clean complete!"
+.PHONY: prog-ice40
+prog-ice40: FPGA_FAMILY=ice40
+prog-ice40: FPGA_DEVICE=up5k
+prog-ice40: ICE40_BIN=$(BITSTREAM_DIR)/$(PROJECT)_ice40.bin
+prog-ice40:
+	@if [ ! -f "$(ICE40_BIN)" ]; then \
+		echo "ERROR: Bitstream $(ICE40_BIN) not found. Run 'make bitstream-ice40' first."; \
+		exit 1; \
+	fi
+	@echo "Programming iCE40 device ($(FPGA_DEVICE))..."
+	@echo "Bitstream: $(ICE40_BIN)"
+ifdef ICEPROG
+	@iceprog $(ICE40_BIN)
+	@echo "Programming complete!"
+else
+	@echo "WARNING: iceprog not available. Trying openFPGALoader..."
+ifdef OPENFPGALOADER
+	@openFPGALoader -b ice40_generic $(ICE40_BIN)
+	@echo "Programming complete!"
+else
+	@echo "ERROR: No programming tool available"
+	@echo "Install with: sudo apt install fpga-icestorm"
+	@exit 1
+endif
+endif
 
-# Show project status
+# === FUTURE FAMILY IMPLEMENTATIONS ===
+# Add new family targets here following the same pattern:
+# 
+# .PHONY: synth-ecp5
+# synth-ecp5: FPGA_FAMILY=ecp5
+# synth-ecp5: FPGA_DEVICE=25k
+# synth-ecp5: FPGA_PACKAGE=CABGA256
+# synth-ecp5:
+# 	@echo "ECP5 synthesis not implemented yet"
+# 	@echo "To implement: add ECP5 tool detection and synthesis logic"
+#
+# Similar for pnr-ecp5, timing-ecp5, bitstream-ecp5, prog-ecp5
+
+# === FAMILY WORKFLOW SHORTCUTS ===
+
+.PHONY: ice40
+ice40: synth-ice40 pnr-ice40 timing-ice40 bitstream-ice40
+	@echo "Complete iCE40 workflow finished!"
+	@echo "Device: up5k (sg48)"
+	@echo "Ready to program with: make prog-ice40"
+
+# Future family shortcuts can be added here:
+# .PHONY: ecp5
+# ecp5: synth-ecp5 pnr-ecp5 timing-ecp5 bitstream-ecp5
+
+# === STATUS AND UTILITIES ===
+
 .PHONY: status
 status:
 	@echo "=== $(PROJECT) Status ==="
@@ -408,20 +475,55 @@ status:
 	@echo "Testbench: $(TESTBENCH)"
 	@echo "FPGA Family: $(FPGA_FAMILY)"
 	@echo "FPGA Device: $(FPGA_DEVICE)"
+	@echo "FPGA Package: $(FPGA_PACKAGE)"
 	@echo ""
 	@echo "Source files:"
 	@find $(RTL_DIR) -name "*.v" -o -name "*.sv" 2>/dev/null | wc -l | awk '{print "  RTL files: " $$1}'
 	@find $(TB_DIR) -name "*_tb.v" -o -name "tb_*.v" 2>/dev/null | wc -l | awk '{print "  Testbenches: " $$1}'
 	@echo ""
-	@echo "Build outputs:"
-	@if [ -f "backend/synth/$(PROJECT)_$(FPGA_FAMILY).json" ]; then \
-		echo "  OK: Synthesis complete"; \
+	@echo "Build status ($(FPGA_FAMILY)):"
+ifeq ($(FPGA_FAMILY),ice40)
+	@if [ -f "$(ICE40_JSON)" ]; then \
+		echo "  OK: Synthesis complete ($(ICE40_JSON))"; \
 	else \
-		echo "  NO: No synthesis output"; \
+		echo "  NO: Synthesis not done"; \
 	fi
+	@if [ -f "$(ICE40_ASC)" ]; then \
+		echo "  OK: Place & Route complete ($(ICE40_ASC))"; \
+	else \
+		echo "  NO: Place & Route not done"; \
+	fi
+	@if [ -f "$(ICE40_BIN)" ]; then \
+		echo "  OK: Bitstream ready ($(ICE40_BIN))"; \
+	else \
+		echo "  NO: Bitstream not generated"; \
+	fi
+else
+	@echo "  INFO: $(FPGA_FAMILY) family not implemented yet"
+endif
 	@echo ""
-	@echo "Available tools:"
-	@make check-tools 2>/dev/null | grep -E "OK:|ERROR:"
+	@echo "Available constraint files:"
+	@if [ -f "$(PCF_FILE)" ]; then echo "  OK: iCE40: $(PCF_FILE)"; else echo "  NO: iCE40: $(PCF_FILE) not found"; fi
+
+# === CLEAN TARGETS ===
+
+.PHONY: clean
+clean:
+	@echo "Cleaning simulation and build outputs..."
+	rm -f $(SIM_DIR)/*.vvp
+	rm -f $(WAVE_DIR)/*.vcd $(WAVE_DIR)/*.fst $(WAVE_DIR)/*.lxt*
+	rm -f $(SYNTH_DIR)/*.json $(SYNTH_DIR)/*.ys $(SYNTH_DIR)/*.v
+	rm -f $(PNR_DIR)/*.asc $(PNR_DIR)/*.config $(PNR_DIR)/*.json
+	rm -f $(BITSTREAM_DIR)/*.bin $(BITSTREAM_DIR)/*.bit $(BITSTREAM_DIR)/*.fs
+	@echo "Clean complete!"
+
+.PHONY: clean-all
+clean-all: clean
+	@echo "Cleaning all generated files..."
+	rm -f $(LOG_DIR)/*.log
+	rm -f $(REPORTS_DIR)/*.log $(REPORTS_DIR)/*.rpt $(REPORTS_DIR)/*.json
+	rm -rf $(SIM_DIR)/obj_dir/  # Verilator objects
+	@echo "Deep clean complete!"
 
 # Quick test target - runs simulation with existing files
 .PHONY: quick-test
@@ -429,9 +531,11 @@ quick-test: update_list sim-waves
 	@echo "Quick test complete! Simulation finished."
 
 .PHONY: all
-all: quick-test
+all: synth pnr timing bitstream
+	@echo "Complete FPGA workflow finished for $(FPGA_FAMILY)!"
+	@echo "Ready to program with: make prog"
 
 # Make all PHONY targets explicit
-.PHONY: synth synth-ice40 synth-ecp5 synth-intel synth-xilinx synth-generic
-.PHONY: sim sim-verilator waves sim-waves clean clean-all
-.PHONY: clean-synth
+.PHONY: synth synth-ice40 pnr pnr-ice40 timing timing-ice40 
+.PHONY: bitstream bitstream-ice40 prog prog-ice40 ice40 all
+.PHONY: clean clean-all
