@@ -158,7 +158,7 @@ module spi_interface_debounce (
     reg spi_mosi_sync0, spi_mosi_sync1;
     reg spi_cs_n_sync0, spi_cs_n_sync1;
     
-    always @(posedge i_clk or negedge i_rst_n) begin
+    always @(posedge i_clk) begin
         if (!i_rst_n) begin
             // Reset all synchronization registers
             spi_clk_sync0 <= 1'b0;
@@ -187,7 +187,7 @@ module spi_interface_debounce (
     reg [1:0] cs_n_stable_cnt;
 
     // Debounce logic for SPI clock
-    always @(posedge i_clk or negedge i_rst_n) begin
+    always @(posedge i_clk) begin
         if (!i_rst_n) begin
             clk_stable_cnt <= 2'd0;
             spi_clk_db <= spi_clk_sync1; // Initialize debounced output
@@ -208,7 +208,7 @@ module spi_interface_debounce (
     end
 
     // Debounce logic for SPI MOSI
-    always @(posedge i_clk or negedge i_rst_n) begin
+    always @(posedge i_clk) begin
         if (!i_rst_n) begin
             mosi_stable_cnt <= 2'd0;
             spi_mosi_db <= spi_mosi_sync1; // Initialize debounced output
@@ -229,7 +229,7 @@ module spi_interface_debounce (
     end
 
     // Debounce logic for SPI CS_n
-    always @(posedge i_clk or negedge i_rst_n) begin
+    always @(posedge i_clk) begin
         if (!i_rst_n) begin
             cs_n_stable_cnt <= 2'd0;
             spi_cs_n_db <= spi_cs_n_sync1; // Initialize debounced output

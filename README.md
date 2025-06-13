@@ -1,34 +1,25 @@
-# fpga-design-toolkit
+# FPGA Design Toolkit
 
-A comprehensive, open-source digital design toolkit for FPGA development with complete simulation workflows, project templates, and professional development environment setup.
+**Complete open-source FPGA development environment with one-command project setup**
 
-## 🚀 Features
+🚀 **Get from zero to working FPGA design in under 5 minutes**
 
-- **One-Command Project Creation**: Automated FPGA project initialization with proper directory structure
-- **Complete Simulation Workflow**: Integrated Icarus Verilog simulation with GTKWave waveform viewing
-- **Family-Based FPGA Support**: Extensible Makefile template with iCE40 implementation (ECP5, Xilinx, Intel ready)
-- **Standard Modules Library**: Ready-to-use Verilog modules for common FPGA design patterns
-- **Example Projects**: Auto-generated examples with comprehensive testbenches
+## What You Get
 
-## 📦 What's Included
+✅ **Instant project setup** - Complete FPGA project structure in one command  
+✅ **Ready-to-use modules** - Synchronizers, edge detectors, SPI debounce, LED controllers  
+✅ **Complete simulation workflow** - Icarus Verilog + GTKWave integration  
+✅ **Full FPGA flow** - Synthesis → Place & Route → Bitstream → Programming  
+✅ **Working examples** - 8-bit adder with 600+ test cases  
 
-### Core Components
+## Quick Start
 
-| Component | Description |
-|-----------|-------------|
-| **`initiate_proj.sh`** | Project initialization script with interactive setup |
-| **`Makefile.template`** | Family-based build system supporting complete FPGA workflows |
-| **`STD_MODULES.v`** | Library of standard utility modules (synchronizer, edge detector, LED logic, SPI debounce) |
-
-
-
-## 🏁 Quick Start
-
-### 1. Clone and Setup
+### 1. Install Tools (Ubuntu/WSL2)
 ```bash
 git clone https://github.com/yourusername/fpga-design-toolkit.git
 cd fpga-design-toolkit
-chmod +x initiate_proj.sh
+chmod +x install_fpga_tools.sh
+./install_fpga_tools.sh
 ```
 
 ### 2. Create Your First Project
@@ -36,223 +27,126 @@ chmod +x initiate_proj.sh
 ./initiate_proj.sh
 ```
 
-The script will:
-- ✅ Ask for your project name with validation
-- ✅ Create a complete directory structure
-- ✅ Generate an enhanced Makefile with FPGA workflow support
-- ✅ Copy standard utility modules
-- ✅ Optionally create example adder with comprehensive testbench
-- ✅ Set up Git integration files (.gitignore, README)
-
-### 3. Test the Example
+### 3. Test Everything Works
 ```bash
 cd your_project_name
 make quick-test
 ```
 
-This automatically:
-- Updates the file list
-- Runs simulation
-- Opens GTKWave for waveform viewing
+**Done!** You now have a working FPGA project with simulation and synthesis support.
 
-## 🔧 Requirements
-
-### Essential Tools
-```bash
-# Ubuntu/Debian installation
-sudo apt update
-sudo apt install -y iverilog gtkwave yosys make git
-
-# For iCE40 FPGA development (optional)
-sudo apt install -y nextpnr-ice40 fpga-icestorm
-```
-
-### Recommended Setup
-- **Linux**: Native Ubuntu 20.04+ or WSL2 with Ubuntu
-- **VS Code**: With Remote-WSL extension and HDL language support
-- **OSS CAD Suite**: For comprehensive toolchain (alternative to individual packages)
-
-## 📁 Generated Project Structure
-
-When you run `initiate_proj.sh`, you get:
+## What Gets Created
 
 ```
 your_project/
-├── sources/              # Source code
-│   ├── rtl/             # RTL source files (.v, .sv)
-│   │   ├── STD_MODULES.v    # Standard utility modules
-│   │   └── adder.v          # Example 8-bit adder (optional)
-│   ├── tb/              # Testbenches
-│   │   └── adder_tb.v       # Comprehensive example testbench
-│   ├── include/         # Include files
-│   ├── constraints/     # Timing/pin constraints
-│   │   └── adder.pcf        # iCE40 constraint file (optional)
-│   └── rtl_list.f       # File list with absolute paths
-├── sim/                 # Simulation workspace
-│   ├── waves/           # Waveform dumps (.vcd, .fst)
-│   └── logs/            # Simulation logs
-├── backend/             # Backend outputs
-│   ├── synth/           # Synthesis outputs (.json)
-│   ├── pnr/             # Place & route (.asc)
-│   ├── bitstream/       # Final bitstreams (.bin)
-│   └── reports/         # Timing/utilization reports
-├── docs/                # Documentation
-├── scripts/             # Build scripts
-├── tests/               # Test vectors
-├── vendor/              # Third-party IP
-├── ip/                  # Custom IP cores
-├── Makefile             # Enhanced build system
-├── README.md            # Project documentation
-└── .gitignore           # Git ignore rules
+├── sources/rtl/        # Your Verilog files + standard modules
+├── sources/tb/         # Testbenches  
+├── sim/               # Simulation outputs & waveforms
+├── backend/           # Synthesis, place & route, bitstreams
+├── Makefile           # Complete build system
+└── README.md          # Project documentation
 ```
 
-## 🛠️ Standard Modules Library
+## Key Features
 
-Every project includes `STD_MODULES.v` with production-ready modules:
+### 🔧 Professional Build System
+```bash
+make sim           # Run simulation
+make waves         # View waveforms  
+make synth-ice40   # Synthesize for iCE40
+make ice40         # Complete FPGA flow
+make prog-ice40    # Program device
+```
 
-### `synchronizer`
-- **Purpose**: Multi-bit clock domain crossing
-- **Parameters**: `WIDTH` (default: 3 bits)
-- **Usage**: Synchronize signals between clock domains
+### 📚 Standard Modules Library
+Ready-to-use Verilog modules included in every project:
+- **synchronizer** - Clock domain crossing
+- **edge_detector** - Rising/falling edge detection  
+- **LED_logic** - Configurable LED controller
+- **spi_interface_debounce** - Clean SPI signal handling
 
+### 🎯 FPGA Family Support
+- **iCE40** - Full support (Lattice)
+- **ECP5** - Ready for implementation  
+- **Xilinx/Intel** - Framework ready
+
+### 🧪 Example Projects
+Auto-generated 8-bit adder with:
+- Complete testbench (600+ test cases)
+- iCE40 constraint files
+- Self-checking verification
+- Ready for hardware implementation
+
+## Supported Tools
+
+**Simulation**: Icarus Verilog, GTKWave, Verilator  
+**Synthesis**: Yosys  
+**Place & Route**: NextPNR  
+**Programming**: iceprog, openFPGALoader  
+
+## Requirements
+
+- **Linux**: Ubuntu 20.04+ or WSL2  
+- **RAM**: 4GB+ (8GB recommended)  
+- **Disk**: 10GB+ free space  
+
+## Use Cases
+
+✨ **Learning FPGA design** - Get started with working examples  
+✨ **Rapid prototyping** - Quick project setup and testing  
+✨ **Open-source development** - No license fees or vendor lock-in  
+✨ **Educational projects** - Complete workflow from simulation to hardware  
+✨ **Commercial projects** - Production-ready for small to medium designs  
+
+## Installation Options
+
+**Option 1: Automatic (Recommended)**
+```bash
+./install_fpga_tools.sh  # Installs OSS CAD Suite + essentials
+```
+
+**Option 2: Manual**
+```bash
+sudo apt install iverilog gtkwave yosys nextpnr-ice40 fpga-icestorm
+```
+
+## Documentation
+
+- **Quick Start**: Run `./initiate_proj.sh` and follow prompts
+- **Makefile Help**: `make help` in any generated project  
+- **Tool Check**: `make check-tools` to verify installation
+- **Project Status**: `make status` to see build state
+
+## Examples & Tutorials
+
+### Create LED Blinker
 ```verilog
-synchronizer #(.WIDTH(8)) sync_inst (
-    .i_clk(clk),
-    .i_rst_n(rst_n),
-    .d_in(async_signal),
-    .d_out(sync_signal)
-);
+LED_logic #(.time_count(50000000), .toggle_count(25000000)) 
+    led_inst (.i_clk(clk), .i_rst_n(rst_n), .i_sig(button), .o_led(led));
 ```
 
-### `edge_detector`
-- **Purpose**: Detect positive and negative edges
-- **Parameters**: `sync_sig` (0=async input, 1=sync input)
-- **Outputs**: `o_pos_edge`, `o_neg_edge`
-
-### `LED_logic`
-- **Purpose**: Configurable LED blinker/flasher
-- **Parameters**: `time_count`, `toggle_count` (in clock cycles)
-- **Usage**: Status indication, error signaling
-
-### `spi_interface_debounce`
-- **Purpose**: Debounce SPI signals for reliable operation
-- **Features**: 200MHz system clock, 2-cycle debounce
-- **Signals**: SPI clock, MOSI, CS_n debouncing
-
-## 🎯 FPGA Workflow Support
-
-The generated Makefile provides complete FPGA development workflows:
-
-### Simulation
-```bash
-make sim               # Run Icarus Verilog simulation
-make waves             # Open GTKWave waveform viewer
-make sim-waves         # Run simulation and open waveforms
+### Add Clock Domain Crossing
+```verilog
+synchronizer #(.WIDTH(8)) sync_inst 
+    (.i_clk(clk), .i_rst_n(rst_n), .d_in(async_data), .d_out(sync_data));
 ```
 
-### iCE40 FPGA Development
-```bash
-make synth-ice40       # Synthesize for iCE40
-make pnr-ice40         # Place and route
-make timing-ice40      # Timing analysis
-make bitstream-ice40   # Generate bitstream
-make prog-ice40        # Program device
-make ice40             # Complete flow (synth+pnr+timing+bitstream)
-```
+## Contributing
 
-### Generic Targets (delegate to current family)
-```bash
-make synth             # Synthesize for current family
-make pnr               # Place and route
-make bitstream         # Generate bitstream
-make prog              # Program device
-make all               # Complete workflow
-```
+🤝 **Add FPGA families** - Extend Makefile template  
+🤝 **New examples** - Add to initiate_proj.sh  
+🤝 **Tool integration** - Support more EDA tools  
+🤝 **Documentation** - Improve guides and tutorials  
 
-### Utilities
-```bash
-make check-tools       # Verify tool installation
-make update_list       # Update rtl_list.f file list
-make status            # Show project status
-make clean             # Clean generated files
-make help              # Show all available targets
-```
+## License
 
-
-
-## 🔬 Example Projects
-
-### Auto-Generated Adder
-The initialization script can create a complete example project:
-
-- **8-bit Ripple Carry Adder**: Production-ready design with full adder components
-- **Comprehensive Testbench**: 600+ test cases including:
-  - Basic functionality tests
-  - Random testing (100 cases)
-  - Exhaustive corner cases (512 cases)
-  - Self-checking verification
-  - Detailed pass/fail statistics
-- **iCE40 Constraints**: Ready for NextPNR with iCEBreaker board pinout
-- **Complete Documentation**: README with usage instructions
-
-## 🧪 Testing and Validation
-
-### One-Command Testing
-```bash
-make quick-test
-```
-Automatically:
-1. Updates file list with current sources
-2. Compiles simulation
-3. Runs testbench
-4. Opens waveform viewer
-5. Reports results
-
-### Tool Verification
-```bash
-make check-tools
-```
-Verifies installation of:
-- Simulation tools (Icarus Verilog, GTKWave)
-- Synthesis tools (Yosys)
-- Family-specific tools (NextPNR, IceStorm)
-- Programming tools (iceprog, openFPGALoader)
-
-## 🏗️ Architecture and Extensibility
-
-### Family-Based Design
-The Makefile template uses a family-based architecture:
-- **Current**: Full iCE40 implementation
-- **Planned**: ECP5, Intel, Xilinx support
-- **Extensible**: Easy addition of new FPGA families
-
-### Professional Features
-- **File List Management**: Automatic absolute path handling
-- **Build Automation**: One-command workflows
-- **Tool Detection**: Automatic verification and fallbacks
-- **Cross-Platform**: Windows WSL2 and native Linux support
-
-## 📖 Documentation
-
-### Quick References
-- Each generated project includes a detailed README
-- Makefile help system: `make help`
-- Tool verification: `make check-tools`
-- Project status: `make status`
-
-## 🤝 Contributing
-
-This toolkit is designed for extensibility:
-
-1. **New FPGA Families**: Add support following the iCE40 implementation pattern
-2. **Additional Examples**: Extend the example generation system
-3. **Tool Integration**: Add support for new EDA tools
-4. **Documentation**: Improve guides and add new platform support
-
-## 📄 License
-
-Open source - see individual file headers for specific licenses.
+MIT License - Use freely for personal and commercial projects
 
 ---
 
-**Ready to start your next FPGA project?** Run `./initiate_proj.sh` and get a complete, professional development environment in minutes!
+**Ready to start designing?** 
+```bash
+git clone https://github.com/yourusername/fpga-design-toolkit.git && cd fpga-design-toolkit && ./install_fpga_tools.sh
+```
+
+**Keywords**: FPGA development, open source EDA tools, Verilog design, digital design toolkit, iCE40 development, FPGA simulation, hardware design automation, RTL design, FPGA synthesis, nextpnr, yosys
