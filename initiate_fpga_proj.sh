@@ -134,6 +134,23 @@ echo "  -> vendor (Third-party IP cores)"
 mkdir -p "$PROJECT_NAME/ip"
 echo "  -> ip (Custom IP cores)"
 
+# Create .gitkeep files to preserve directory structure in Git
+echo "Creating .gitkeep files to preserve directory structure..."
+touch "$PROJECT_NAME/sources/include/.gitkeep"
+touch "$PROJECT_NAME/sources/constraints/.gitkeep"
+touch "$PROJECT_NAME/sim/waves/.gitkeep"
+touch "$PROJECT_NAME/sim/logs/.gitkeep"
+touch "$PROJECT_NAME/backend/synth/.gitkeep"
+touch "$PROJECT_NAME/backend/pnr/.gitkeep"
+touch "$PROJECT_NAME/backend/bitstream/.gitkeep"
+touch "$PROJECT_NAME/backend/reports/.gitkeep"
+touch "$PROJECT_NAME/docs/.gitkeep"
+touch "$PROJECT_NAME/scripts/.gitkeep"
+touch "$PROJECT_NAME/tests/.gitkeep"
+touch "$PROJECT_NAME/vendor/.gitkeep"
+touch "$PROJECT_NAME/ip/.gitkeep"
+echo "  -> .gitkeep files added to preserve empty directories in Git"
+
 echo
 echo "================================================"
 echo "Creating Template Files"
@@ -153,42 +170,67 @@ fi
 # Create .gitignore
 echo "Creating .gitignore..."
 cat > "$PROJECT_NAME/.gitignore" << 'EOF'
-# Simulation outputs
-*.vvp
-*.vcd
-*.fst
-*.lxt
-*.lxt2
-*.ghw
+# === FPGA Build Artifacts ===
+# Simulation files (Icarus Verilog)
+sim/*.vvp
+sim/*_sim
+sim/waves/*.vcd
+sim/waves/*.fst
+sim/waves/*.lxt*
+sim/waves/*.ghw
+sim/logs/*.log
 
-# Synthesis outputs
-*.json
-*.asc
-*.bin
-*.rpt
+# Synthesis outputs (Yosys)
+backend/synth/*.json
+backend/synth/*.ys
+backend/synth/*_synth.v
 
-# Log files
-*.log
+# Place & Route outputs (NextPNR)
+backend/pnr/*.asc
+backend/pnr/*.config
+backend/pnr/*.json
+
+# Bitstream files
+backend/bitstream/*.bin
+backend/bitstream/*.bit
+backend/bitstream/*.fs
+
+# Reports and logs
+backend/reports/*.log
+backend/reports/*.rpt
+backend/reports/*.json
+
+# Verilator outputs (if used)
+sim/obj_dir/
+*.d
+
+# === Development Files ===
+# Temporary files
 *.tmp
-
-# OS specific
-.DS_Store
-Thumbs.db
+*.bak
+*~
 
 # Editor specific
 *.swp
 *.swo
-*~
 .vscode/
 .idea/
+*.sublime-*
 
-# Build outputs
-build/
-dist/
+# OS specific
+.DS_Store
+Thumbs.db
+*.directory
 
-# Vendor specific
+# === Project Specific ===
+# Keep directory structure but ignore contents
 vendor/*/
 !vendor/.gitkeep
+ip/*/
+!ip/.gitkeep
+
+# Auto-generated file lists (should be regenerated)
+sources/rtl_list.f
 EOF
 
 # Create README.md
@@ -560,7 +602,7 @@ module adder_tb;
     // Test stimulus
     initial begin
         // Initialize waveform dump
-        $dumpfile("sim/waves/adder_waves.vcd");
+        $dumpfile("sim/waves/adder_tb.vcd");
         $dumpvars(0, adder_tb);
 
         // Initialize variables
