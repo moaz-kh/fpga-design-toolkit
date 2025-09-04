@@ -2,8 +2,8 @@
 # Family-based architecture with iCE40 implementation
 
 PROJECT = PROJECT_NAME_PLACEHOLDER
-TOP_MODULE = adder
-TESTBENCH = adder_tb
+TOP_MODULE ?= adder
+TESTBENCH ?= adder_tb
 
 # FPGA family configuration - extensible for future families
 FPGA_FAMILY ?= ice40
@@ -25,12 +25,12 @@ LPF_FILE ?= sources/constraints/$(TOP_MODULE).lpf
 XDC_FILE ?= sources/constraints/$(TOP_MODULE).xdc
 
 # Directories
-RTL_DIR = sources/rtl
-TB_DIR = sources/tb
-SIM_DIR = sim
+RTL_DIR ?= sources/rtl
+TB_DIR ?= sources/tb
+SIM_DIR ?= sim
 WAVE_DIR = $(SIM_DIR)/waves
 LOG_DIR = $(SIM_DIR)/logs
-FILELIST = sources/rtl_list.f
+FILELIST ?= sources/rtl_list.f
 
 # Backend directories
 SYNTH_DIR = backend/synth
@@ -89,6 +89,19 @@ help:
 	@echo "  check-tools   - Check available tools"
 	@echo "  update_list   - Update rtl_list.f with current source files"
 	@echo "  status        - Show project and tool status"
+	@echo "  list-modules  - List available RTL modules and testbenches"
+	@echo ""
+	@echo "Runtime configuration (override defaults):"
+	@echo "  TOP_MODULE=name     - Override top module (default: $(TOP_MODULE))"
+	@echo "  TESTBENCH=name      - Override testbench (default: $(TESTBENCH))"  
+	@echo "  FPGA_FAMILY=family  - Override FPGA family (default: $(FPGA_FAMILY))"
+	@echo "  FPGA_DEVICE=device  - Override FPGA device (default: $(FPGA_DEVICE))"
+	@echo "  RTL_DIR=path        - Override RTL directory (default: $(RTL_DIR))"
+	@echo "  TB_DIR=path         - Override testbench directory (default: $(TB_DIR))"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make sim TOP_MODULE=counter TESTBENCH=counter_tb"
+	@echo "  make ice40 FPGA_DEVICE=hx8k FPGA_PACKAGE=ct256"
 	@echo ""
 	@echo "Simulation targets:"
 	@echo "  sim           - Run simulation with Icarus Verilog"
@@ -208,6 +221,34 @@ update_list:
 	@find $(PWD)/$(TB_DIR) -name "*_tb.v" -o -name "*_tb.sv" -o -name "tb_*.v" -o -name "tb_*.sv" | sort >> $(FILELIST) 2>/dev/null || true
 	@echo "File list updated: $(FILELIST)"
 	@echo "Found $(shell grep -c '^/' $(FILELIST) 2>/dev/null || echo 0) files"
+
+.PHONY: list-modules
+list-modules:
+	@echo "=== Available RTL Modules ==="
+	@if [ -d "$(RTL_DIR)" ]; then \
+		find $(RTL_DIR) -name "*.v" -o -name "*.sv" | while read file; do \
+			modules=$$(grep -h "^module " "$$file" 2>/dev/null | sed 's/module //' | sed 's/[[:space:]]*([^)]*).*//'); \
+			if [ ! -z "$$modules" ]; then \
+				echo "$$file:"; \
+				echo "$$modules" | sed 's/^/  - /'; \
+			fi; \
+		done; \
+	else \
+		echo "  No RTL directory found: $(RTL_DIR)"; \
+	fi
+	@echo ""
+	@echo "=== Available Testbenches ==="
+	@if [ -d "$(TB_DIR)" ]; then \
+		find $(TB_DIR) -name "*_tb.v" -o -name "*_tb.sv" -o -name "tb_*.v" -o -name "tb_*.sv" | while read file; do \
+			modules=$$(grep -h "^module " "$$file" 2>/dev/null | sed 's/module //' | sed 's/[[:space:]]*([^)]*).*//'); \
+			if [ ! -z "$$modules" ]; then \
+				echo "$$file:"; \
+				echo "$$modules" | sed 's/^/  - /'; \
+			fi; \
+		done; \
+	else \
+		echo "  No testbench directory found: $(TB_DIR)"; \
+	fi
 
 # === SIMULATION TARGETS ===
 
