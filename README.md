@@ -16,7 +16,7 @@
 
 ### 1. Install Tools (Ubuntu/WSL2)
 ```bash
-git clone https://github.com/yourusername/fpga-design-toolkit.git
+git clone https://github.com/moaz-kh/fpga-design-toolkit.git
 cd fpga-design-toolkit
 chmod +x install_fpga_tools.sh
 ./install_fpga_tools.sh
@@ -146,7 +146,7 @@ MIT License - Use freely for personal and commercial projects
 
 **Ready to start designing?** 
 ```bash
-git clone https://github.com/yourusername/fpga-design-toolkit.git && cd fpga-design-toolkit && ./install_fpga_tools.sh
+git clone https://github.com/moaz-kh/fpga-design-toolkit.git && cd fpga-design-toolkit && ./install_fpga_tools.sh
 ```
 
 **Keywords**: FPGA development, open source EDA tools, Verilog design, digital design toolkit, iCE40 development, FPGA simulation, hardware design automation, RTL design, FPGA synthesis, nextpnr, yosys
