@@ -57,6 +57,10 @@ ICETIME := $(shell command -v icetime 2> /dev/null)
 
 OPENFPGALOADER := $(shell command -v openFPGALoader 2> /dev/null)
 
+# Compiler flags for different targets
+SIM_FLAGS = -D SIMULATION           # Enable simulation features for testbenches
+SYNTH_FLAGS = -D SYNTHESIS          # Define synthesis mode (disable simulation features)
+
 # Simulation files
 SIM_TOP = $(SIM_DIR)/$(TESTBENCH).vvp
 WAVE_FILE = $(WAVE_DIR)/$(TESTBENCH).vcd
@@ -287,7 +291,7 @@ $(SIM_TOP): $(FILELIST) $(shell find $(RTL_DIR) $(TB_DIR) -name "*.v" -o -name "
 		echo "TIP: Then run 'make update_list'"; \
 		exit 1; \
 	fi
-	@$(IVERILOG) -g2009 -f $(FILELIST) -s $(TESTBENCH) -o $(SIM_TOP)
+	@$(IVERILOG) -g2009 $(SIM_FLAGS) -f $(FILELIST) -s $(TESTBENCH) -o $(SIM_TOP)
 	@echo "Compilation successful!"
 
 .PHONY: waves
@@ -355,8 +359,8 @@ ifdef YOSYS
 	@echo "# Auto-generated Yosys script for iCE40" > $(SYNTH_DIR)/yosys_script_ice40.ys
 	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | while read file; do \
 		case "$$file" in \
-			*.sv) echo "read_verilog -sv $$file" ;; \
-			*.v)  echo "read_verilog $$file" ;; \
+			*.sv) echo "read_verilog -sv $(SYNTH_FLAGS) $$file" ;; \
+			*.v)  echo "read_verilog $(SYNTH_FLAGS) $$file" ;; \
 			*.vhd|*.vhdl) echo "read_vhdl $$file" ;; \
 			*) echo "# Unsupported file type: $$file" ;; \
 		esac; \
