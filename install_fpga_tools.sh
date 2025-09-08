@@ -2,6 +2,7 @@
 # Simple FPGA Design Tools Installer
 # Focus: OSS CAD Suite (comprehensive toolchain)
 # Target: WSL2 Ubuntu 22.04+
+# Usage: ./install_fpga_tools.sh [--cleanup]
 
 set -euo pipefail
 
@@ -21,9 +22,52 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-echo "========================================"
-echo "Simple FPGA Tools Installer"
-echo "OSS CAD Suite + Essential Tools"
+show_usage() {
+    echo "Usage: $0 [OPTIONS]"
+    echo "Options:"
+    echo "  --cleanup    Remove all installed FPGA tools and clean up"
+    echo "  --reinstall  Clean up and reinstall all tools"
+    echo "  -h, --help   Show this help message"
+    echo ""
+    echo "Default: Install FPGA tools (if not already installed)"
+}
+
+# Parse command line arguments
+CLEANUP_MODE=false
+REINSTALL_MODE=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --cleanup)
+            CLEANUP_MODE=true
+            shift
+            ;;
+        --reinstall)
+            REINSTALL_MODE=true
+            shift
+            ;;
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            show_usage
+            exit 1
+            ;;
+    esac
+done
+
+if [ "$CLEANUP_MODE" = true ]; then
+    echo "Simple FPGA Tools Cleanup"
+    echo "Removing All Installed Tools"
+elif [ "$REINSTALL_MODE" = true ]; then
+    echo "Simple FPGA Tools Reinstaller"
+    echo "Clean + Fresh Install"
+else
+    echo "Simple FPGA Tools Installer"
+    echo "OSS CAD Suite + Essential Tools"
+fi
 echo "========================================"
 
 # Basic checks
@@ -33,6 +77,111 @@ check_wsl2() {
         exit 1
     fi
     log_info "WSL2 environment detected: $WSL_DISTRO_NAME"
+}
+
+# Check WSL version and offer update if needed
+check_and_update_wsl() {
+    log_info "Checking WSL version..."
+    
+    # Get current WSL version from Windows host
+    local wsl_version=""
+    if command -v wsl.exe &> /dev/null; then
+        wsl_version=$(wsl.exe --version 2>/dev/null | grep -E "WSL version:" | cut -d: -f2 | tr -d ' ' || echo "")
+    fi
+    
+    if [[ -z "$wsl_version" ]]; then
+        log_warn "Could not determine WSL version - continuing with installation"
+        return 0
+    fi
+    
+    log_info "Current WSL version: $wsl_version"
+    
+    # Check if WSL update is available (this is a simplified check)
+    # In practice, WSL updates are managed by Windows Update
+    local update_available=false
+    
+    # Check if wsl --update command is available (indicates newer WSL)
+    if wsl.exe --help 2>/dev/null | grep -q "\--update"; then
+        log_info "WSL update command available - checking for updates..."
+        
+        echo ""
+        echo "========================================"
+        echo "WSL Update Check"
+        echo "========================================"
+        echo ""
+        echo "WSL can be updated to the latest version for better performance"
+        echo "and compatibility with FPGA development tools."
+        echo ""
+        echo "This will:"
+        echo "- Update WSL to the latest version"
+        echo "- Not affect your current Linux distribution"
+        echo "- Not affect your files or installed programs"
+        echo "- Improve overall WSL performance and stability"
+        echo ""
+        
+        read -p "Would you like to update WSL to the latest version? [y/N]: " -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            update_wsl_safely
+        else
+            log_info "Skipping WSL update - continuing with FPGA tools installation"
+        fi
+    else
+        log_warn "WSL update command not available - you may have an older WSL version"
+        log_warn "Consider updating WSL manually via Windows Store or Windows Update"
+    fi
+}
+
+# Safely update WSL
+update_wsl_safely() {
+    log_info "Updating WSL..."
+    
+    # Create a backup note about current state
+    echo "WSL update initiated at $(date)" >> "$HOME/.wsl_update_log" 2>/dev/null || true
+    
+    # Try to update WSL from Windows side
+    if wsl.exe --update 2>/dev/null; then
+        log_info "WSL updated successfully!"
+        log_info "The update will take effect after restarting WSL"
+        
+        echo ""
+        echo "========================================"
+        echo "WSL Update Complete"
+        echo "========================================"
+        echo ""
+        echo "WSL has been updated. The changes will take effect after"
+        echo "restarting your WSL session."
+        echo ""
+        echo "You can:"
+        echo "1. Continue with FPGA tools installation (recommended)"
+        echo "2. Restart WSL now and re-run this script"
+        echo ""
+        
+        read -p "Continue with installation? [Y/n]: " -n 1 -r
+        echo
+        
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            log_info "Installation paused. Please restart WSL and re-run this script."
+            echo ""
+            echo "To restart WSL:"
+            echo "1. Close all WSL terminals"
+            echo "2. From Windows Command Prompt or PowerShell, run:"
+            echo "   wsl --shutdown"
+            echo "3. Re-open your WSL terminal"
+            echo "4. Re-run this script: ./install_fpga_tools.sh"
+            exit 0
+        fi
+    else
+        log_warn "WSL update failed or no update available"
+        log_warn "Continuing with current WSL version"
+        
+        # Check if we need to recommend manual update
+        if [[ "$wsl_version" < "1.0" ]]; then
+            log_warn "Your WSL version may be quite old"
+            log_warn "Consider updating via Windows Store or Windows Update"
+        fi
+    fi
 }
 
 check_resources() {
@@ -259,9 +408,130 @@ verify_installation() {
     fi
 }
 
+# Cleanup functions
+cleanup_oss_cad_suite() {
+    log_info "Removing OSS CAD Suite..."
+    
+    if [ -d "$WORKSPACE_DIR/oss-cad-suite" ]; then
+        rm -rf "$WORKSPACE_DIR/oss-cad-suite"
+        log_info "OSS CAD Suite removed"
+    else
+        log_warn "OSS CAD Suite directory not found"
+    fi
+    
+    # Remove downloaded file if it exists
+    if [ -f "$WORKSPACE_DIR/$OSS_CAD_FILE" ]; then
+        rm -f "$WORKSPACE_DIR/$OSS_CAD_FILE"
+        log_info "OSS CAD Suite archive removed"
+    fi
+    
+    # Remove workspace directory if empty
+    if [ -d "$WORKSPACE_DIR" ] && [ -z "$(ls -A "$WORKSPACE_DIR")" ]; then
+        rmdir "$WORKSPACE_DIR"
+        log_info "Workspace directory removed"
+    fi
+}
+
+cleanup_apt_packages() {
+    log_info "Removing apt packages installed by this script..."
+    
+    # Remove FPGA-specific packages
+    sudo apt remove -y \
+        yosys \
+        nextpnr-ice40 \
+        fpga-icestorm \
+        arachne-pnr \
+        iverilog \
+        gtkwave \
+        verilator \
+        openocd 2>/dev/null || log_warn "Some apt packages may not have been installed"
+    
+    # Clean up unused dependencies
+    sudo apt autoremove -y
+    
+    log_info "Apt packages removed"
+}
+
+cleanup_python_packages() {
+    log_info "Removing Python packages..."
+    
+    # Remove user-installed packages
+    pip3 uninstall -y \
+        cocotb \
+        cocotb-test \
+        amaranth \
+        fusesoc 2>/dev/null || log_warn "Some Python packages may not have been installed"
+    
+    log_info "Python packages removed"
+}
+
+cleanup_bashrc() {
+    log_info "Removing PATH entries from ~/.bashrc..."
+    
+    # Create a backup
+    cp ~/.bashrc ~/.bashrc.backup.$(date +%Y%m%d_%H%M%S)
+    
+    # Remove OSS CAD Suite entries
+    grep -v "oss-cad-suite" ~/.bashrc > ~/.bashrc.tmp
+    grep -v "OSS CAD Suite for FPGA development" ~/.bashrc.tmp > ~/.bashrc.new
+    mv ~/.bashrc.new ~/.bashrc
+    rm -f ~/.bashrc.tmp
+    
+    log_info "PATH entries removed from ~/.bashrc"
+    log_info "Backup created at ~/.bashrc.backup.*"
+}
+
+perform_cleanup() {
+    log_info "Starting complete cleanup..."
+    
+    echo ""
+    echo "This will remove:"
+    echo "- OSS CAD Suite installation"
+    echo "- All apt packages installed by this script"
+    echo "- All Python packages installed by this script"
+    echo "- PATH entries from ~/.bashrc"
+    echo ""
+    
+    read -p "Are you sure you want to proceed? [y/N]: " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_info "Cleanup cancelled"
+        exit 0
+    fi
+    
+    cleanup_oss_cad_suite
+    cleanup_apt_packages
+    cleanup_python_packages
+    cleanup_bashrc
+    
+    echo ""
+    echo "========================================"
+    echo "Cleanup Complete!"
+    echo "========================================"
+    echo ""
+    echo "All FPGA tools have been removed."
+    echo "Please restart your terminal or run: source ~/.bashrc"
+    echo ""
+}
+
 # Main function
 main() {
+    # Handle cleanup mode
+    if [ "$CLEANUP_MODE" = true ]; then
+        perform_cleanup
+        exit 0
+    fi
+    
+    # Handle reinstall mode
+    if [ "$REINSTALL_MODE" = true ]; then
+        log_info "Reinstall mode: cleaning up first..."
+        perform_cleanup
+        log_info "Proceeding with fresh installation..."
+        echo ""
+    fi
+    
     check_wsl2
+    check_and_update_wsl
     check_resources
     
     echo ""
@@ -308,9 +578,9 @@ main() {
     echo ""
     echo "Next steps:"
     echo "1. Restart terminal or run: source ~/.bashrc"
-    echo "2. All tools needed for initiate_proj.sh are now installed"
+    echo "2. All tools needed for initiate_fpga_proj.sh are now installed"
     echo "3. Create projects with fpga-design-toolkit:"
-    echo "   ./initiate_proj.sh"
+    echo "   ./initiate_fpga_proj.sh"
     echo "4. Test tools:"
     echo "   yosys -V"
     echo "   iverilog -V"
@@ -318,10 +588,10 @@ main() {
     echo "Installation method: Manual download + apt packages"
     echo ""
     echo "Create new projects with:"
-    echo "- fpga-design-toolkit: ./initiate_proj.sh"
+    echo "- fpga-design-toolkit: ./initiate_fpga_proj.sh"
     echo "- Manual project setup using installed tools"
     echo ""
-    echo "All tools required by initiate_proj.sh are now installed!"
+    echo "All tools required by initiate_fpga_proj.sh are now installed!"
     echo ""
     echo "Documentation:"
     echo "- OSS CAD Suite: https://github.com/YosysHQ/oss-cad-suite-build"

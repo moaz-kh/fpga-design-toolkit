@@ -19,12 +19,12 @@
 git clone https://github.com/moaz-kh/fpga-design-toolkit.git
 cd fpga-design-toolkit
 chmod +x install_fpga_tools.sh
-./install_fpga_tools.sh
+./install_fpga_tools.sh    # Includes automatic WSL update check
 ```
 
 ### 2. Create Your First Project
 ```bash
-./initiate_proj.sh
+./initiate_fpga_proj.sh
 ```
 
 ### 3. Test Everything Works
@@ -89,6 +89,7 @@ Auto-generated 8-bit adder with:
 - **Linux**: Ubuntu 20.04+ or WSL2  
 - **RAM**: 4GB+ (8GB recommended)  
 - **Disk**: 10GB+ free space  
+- **WSL**: Automatic update check ensures latest version for optimal performance  
 
 ## Use Cases
 
@@ -102,7 +103,7 @@ Auto-generated 8-bit adder with:
 
 **Option 1: Automatic (Recommended)**
 ```bash
-./install_fpga_tools.sh  # Installs OSS CAD Suite + essentials
+./install_fpga_tools.sh  # Installs OSS CAD Suite + essentials + WSL updates
 ```
 
 **Option 2: Manual**
@@ -112,7 +113,7 @@ sudo apt install iverilog gtkwave yosys nextpnr-ice40 fpga-icestorm
 
 ## Documentation
 
-- **Quick Start**: Run `./initiate_proj.sh` and follow prompts
+- **Quick Start**: Run `./initiate_fpga_proj.sh` and follow prompts
 - **Makefile Help**: `make help` in any generated project  
 - **Tool Check**: `make check-tools` to verify installation
 - **Project Status**: `make status` to see build state

@@ -10,7 +10,7 @@ This is an FPGA Design Toolkit that provides a complete open-source FPGA develop
 
 ### Initial Setup
 ```bash
-# Install all FPGA tools (run once)
+# Install all FPGA tools (run once) - includes WSL update check
 ./install_fpga_tools.sh
 
 # Create a new FPGA project
@@ -18,6 +18,14 @@ This is an FPGA Design Toolkit that provides a complete open-source FPGA develop
 ```
 
 Note: The main script is `initiate_fpga_proj.sh` not `initiate_proj.sh` as mentioned in the README.
+
+### WSL Update Functionality
+The installation script now includes WSL version checking and updating:
+- Automatically detects current WSL version
+- Offers to update to latest WSL version for better performance
+- Safe update process that doesn't affect your Linux distribution
+- User confirmation required before any updates
+- Graceful fallback if update fails or isn't needed
 
 ### Generated Project Structure
 When a new project is created, it follows this structure:
@@ -151,9 +159,11 @@ make list-modules RTL_DIR=custom_rtl TB_DIR=custom_tb
    - Sets up constraint files for iCE40
 
 4. **install_fpga_tools.sh** - Tool installation script for:
+   - WSL version checking and updating (automatic detection and safe updates)
    - OSS CAD Suite (Yosys, NextPNR, icestorm tools)
    - Icarus Verilog and GTKWave
-   - openFPGALoader 
+   - openFPGALoader
+   - Comprehensive error handling and user guidance 
 
 ### FPGA Family Support
 
