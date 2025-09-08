@@ -13,19 +13,40 @@ This is an FPGA Design Toolkit that provides a complete open-source FPGA develop
 # Install all FPGA tools (run once) - includes WSL update check
 ./install_fpga_tools.sh
 
+# Clean reinstall if needed (complete cleanup + fresh install)
+./install_fpga_tools.sh --reinstall
+
+# Remove all installed tools (complete cleanup)
+./install_fpga_tools.sh --cleanup
+
 # Create a new FPGA project
 ./initiate_fpga_proj.sh
 ```
 
 Note: The main script is `initiate_fpga_proj.sh` not `initiate_proj.sh` as mentioned in the README.
 
-### WSL Update Functionality
-The installation script now includes WSL version checking and updating:
+### Advanced Installation Features
+The installation script now includes comprehensive management capabilities:
+
+**WSL Version Management:**
 - Automatically detects current WSL version
 - Offers to update to latest WSL version for better performance
 - Safe update process that doesn't affect your Linux distribution
 - User confirmation required before any updates
 - Graceful fallback if update fails or isn't needed
+
+**Installation Protection:**
+- Write-protects OSS CAD Suite installation to prevent accidental modification
+- Creates compatibility symlinks for VPI modules
+- Comprehensive verification of all installed tools
+- Automatic fallback to apt packages if manual download fails
+
+**Cleanup and Reinstall:**
+- `--cleanup` option removes all installed tools completely
+- `--reinstall` option performs cleanup followed by fresh installation
+- Safely restores write permissions before removal
+- Removes PATH entries from ~/.bashrc with backup
+- Cleans up apt packages, Python packages, and symlinks
 
 ### Generated Project Structure
 When a new project is created, it follows this structure:
@@ -158,11 +179,13 @@ make list-modules RTL_DIR=custom_rtl TB_DIR=custom_tb
    - Generates example 8-bit adder with comprehensive testbench
    - Sets up constraint files for iCE40
 
-4. **install_fpga_tools.sh** - Tool installation script for:
+4. **install_fpga_tools.sh** - Advanced tool installation and management script for:
    - WSL version checking and updating (automatic detection and safe updates)
-   - OSS CAD Suite (Yosys, NextPNR, icestorm tools)
+   - OSS CAD Suite (Yosys, NextPNR, icestorm tools) with write protection
    - Icarus Verilog and GTKWave
-   - openFPGALoader
+   - Python packages (CocoTB, Amaranth, FuseSoC)
+   - Complete cleanup and reinstall functionality (`--cleanup`, `--reinstall`)
+   - Installation verification and fallback options
    - Comprehensive error handling and user guidance 
 
 ### FPGA Family Support

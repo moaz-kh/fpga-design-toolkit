@@ -302,16 +302,44 @@ install_oss_cad_suite() {
         log_info "Added OSS CAD Suite to PATH in ~/.bashrc"
     fi
     
+    # Create compatibility symlink for VPI modules (OSS CAD Suite hardcoded path issue)
+    if [ ! -L "$HOME/oss-cad-suite" ] && [ ! -d "$HOME/oss-cad-suite" ]; then
+        ln -s "$WORKSPACE_DIR/oss-cad-suite" "$HOME/oss-cad-suite"
+        log_info "Created compatibility symlink for VPI modules"
+    fi
+    
     # Test installation
     export PATH="$WORKSPACE_DIR/oss-cad-suite/bin:$PATH"
     if command -v yosys &> /dev/null; then
         log_info "OSS CAD Suite installed successfully!"
         yosys -V | head -1
         nextpnr-ice40 --version | head -1 2>/dev/null || log_warn "NextPNR test failed"
+        
+        # Protect the installation
+        protect_installation
     else
         log_error "OSS CAD Suite installation failed - tools not found"
         exit 1
     fi
+}
+
+# Protect OSS CAD Suite installation from accidental modification
+protect_installation() {
+    log_info "Write-protecting OSS CAD Suite installation..."
+    
+    # Make the entire oss-cad-suite directory and contents read-only
+    chmod -R a-w "$WORKSPACE_DIR/oss-cad-suite"
+    
+    # Make the parent directory (fpga_workspace) read-only to prevent renaming/removal
+    chmod a-w "$WORKSPACE_DIR"
+    
+    # Optional: Make symlink immutable (if chattr is available)
+    if command -v chattr &> /dev/null && [ -L "$HOME/oss-cad-suite" ]; then
+        chattr +i "$HOME/oss-cad-suite" 2>/dev/null || log_warn "Could not make symlink immutable"
+    fi
+    
+    log_info "Installation write-protected"
+    log_info "Use cleanup mode (--cleanup) to restore write permissions for removal"
 }
 
 # Fallback installation using individual packages
@@ -408,28 +436,48 @@ verify_installation() {
     fi
 }
 
+# Restore write permissions before cleanup
+restore_write_permissions() {
+    log_info "Restoring write permissions for cleanup..."
+    
+    # Remove immutable flag from symlink if it exists
+    if command -v chattr &> /dev/null && [ -L "$HOME/oss-cad-suite" ]; then
+        chattr -i "$HOME/oss-cad-suite" 2>/dev/null || true
+    fi
+    
+    # Restore workspace directory permissions
+    if [ -d "$WORKSPACE_DIR" ]; then
+        chmod u+w "$WORKSPACE_DIR" 2>/dev/null || true
+    fi
+    
+    # Restore OSS CAD Suite permissions recursively
+    if [ -d "$WORKSPACE_DIR/oss-cad-suite" ]; then
+        chmod -R u+w "$WORKSPACE_DIR/oss-cad-suite" 2>/dev/null || true
+    fi
+    
+    log_info "Write permissions restored for cleanup"
+}
+
 # Cleanup functions
 cleanup_oss_cad_suite() {
     log_info "Removing OSS CAD Suite..."
+    
+    # Restore write permissions first
+    restore_write_permissions
     
     if [ -d "$WORKSPACE_DIR/oss-cad-suite" ]; then
         rm -rf "$WORKSPACE_DIR/oss-cad-suite"
         log_info "OSS CAD Suite removed"
     else
         log_warn "OSS CAD Suite directory not found"
+    fi 
+    
+    # Remove compatibility symlink
+    if [ -L "$HOME/oss-cad-suite" ]; then
+        rm -f "$HOME/oss-cad-suite"
+        log_info "Compatibility symlink removed"
     fi
     
-    # Remove downloaded file if it exists
-    if [ -f "$WORKSPACE_DIR/$OSS_CAD_FILE" ]; then
-        rm -f "$WORKSPACE_DIR/$OSS_CAD_FILE"
-        log_info "OSS CAD Suite archive removed"
-    fi
-    
-    # Remove workspace directory if empty
-    if [ -d "$WORKSPACE_DIR" ] && [ -z "$(ls -A "$WORKSPACE_DIR")" ]; then
-        rmdir "$WORKSPACE_DIR"
-        log_info "Workspace directory removed"
-    fi
 }
 
 cleanup_apt_packages() {

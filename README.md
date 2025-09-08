@@ -19,7 +19,7 @@
 git clone https://github.com/moaz-kh/fpga-design-toolkit.git
 cd fpga-design-toolkit
 chmod +x install_fpga_tools.sh
-./install_fpga_tools.sh    # Includes automatic WSL update check
+./install_fpga_tools.sh    # Includes cleanup/reinstall options and WSL update check
 ```
 
 ### 2. Create Your First Project
@@ -101,12 +101,37 @@ Auto-generated 8-bit adder with:
 
 ## Installation Options
 
-**Option 1: Automatic (Recommended)**
+### Smart Installation with Cleanup Support
+The installation script now includes advanced management features:
+
+**Fresh Installation**
 ```bash
-./install_fpga_tools.sh  # Installs OSS CAD Suite + essentials + WSL updates
+./install_fpga_tools.sh  # Auto WSL update check + tool installation
 ```
 
-**Option 2: Manual**
+**Clean Reinstall** (if tools become corrupted)
+```bash
+./install_fpga_tools.sh --reinstall  # Complete cleanup + fresh install
+```
+
+**Remove Everything** (clean uninstall)
+```bash
+./install_fpga_tools.sh --cleanup  # Remove all installed tools
+```
+
+**Get Help**
+```bash
+./install_fpga_tools.sh --help  # Show all options
+```
+
+### What the Installer Provides
+- **WSL Version Management**: Automatically detects and offers to update WSL to latest version
+- **Write Protection**: Protects OSS CAD Suite installation from accidental modification
+- **Safe Cleanup**: Complete removal with permission restoration
+- **Comprehensive Verification**: Tests all tools after installation
+- **Fallback Options**: Automatic fallback to apt packages if manual download fails
+
+**Manual Installation (Alternative)**
 ```bash
 sudo apt install iverilog gtkwave yosys nextpnr-ice40 fpga-icestorm
 ```
