@@ -65,6 +65,7 @@ SYNTH_FLAGS = -D SYNTHESIS          # Define synthesis mode (disable simulation 
 SIM_TOP = $(SIM_DIR)/$(TESTBENCH).vvp
 WAVE_FILE = $(WAVE_DIR)/$(TESTBENCH).vcd
 FST_FILE = $(WAVE_DIR)/$(TESTBENCH).fst
+SESSION_FILE = $(WAVE_DIR)/$(TESTBENCH).gtkw
 
 # Family-specific output files (extensible naming scheme)
 ICE40_JSON = $(SYNTH_DIR)/$(PROJECT)_ice40.json
@@ -109,8 +110,9 @@ help:
 	@echo ""
 	@echo "Simulation targets:"
 	@echo "  sim           - Run simulation with Icarus Verilog"
-	@echo "  waves         - View waveforms with GTKWave"
+	@echo "  waves         - View waveforms with GTKWave (loads .gtkw session if available)"
 	@echo "  sim-waves     - Run simulation and open waveforms"
+	@echo "  save-session  - Create template .gtkw session file for current testbench"
 	@echo ""
 	@echo "Complete workflow targets:"
 	@echo "  all           - Complete flow for current family: synth -> pnr -> bitstream"
@@ -273,6 +275,11 @@ sim: $(SIM_TOP)
 		echo "   Waveform: $(FST_FILE)"; \
 	fi
 	@echo "View waves: make waves"
+	@echo ""
+	@echo "GTKWave Session Tip:"
+	@echo "• First time: Arrange signals manually in GTKWave, then Ctrl+S to save session"
+	@echo "• Future runs: 'make waves' will automatically restore your signal layout!"
+	@echo "• Session file: $(SESSION_FILE)"
 
 $(SIM_TOP): $(FILELIST) $(shell find $(RTL_DIR) $(TB_DIR) -name "*.v" -o -name "*.sv" -o -name "*.vhd" -o -name "*.vhdl" 2>/dev/null)
 	@if [ -z "$(IVERILOG)" ]; then \
@@ -301,11 +308,21 @@ waves:
 		exit 1; \
 	fi
 	@if [ -f "$(WAVE_FILE)" ]; then \
-		echo "Opening waveforms: $(WAVE_FILE)"; \
-		$(GTKWAVE) $(WAVE_FILE) & \
+		if [ -f "$(SESSION_FILE)" ]; then \
+			echo "Opening waveforms with saved session: $(WAVE_FILE) + $(SESSION_FILE)"; \
+			$(GTKWAVE) $(WAVE_FILE) $(SESSION_FILE) & \
+		else \
+			echo "Opening waveforms: $(WAVE_FILE)"; \
+			$(GTKWAVE) $(WAVE_FILE) & \
+		fi \
 	elif [ -f "$(FST_FILE)" ]; then \
-		echo "Opening waveforms: $(FST_FILE)"; \
-		$(GTKWAVE) $(FST_FILE) & \
+		if [ -f "$(SESSION_FILE)" ]; then \
+			echo "Opening waveforms with saved session: $(FST_FILE) + $(SESSION_FILE)"; \
+			$(GTKWAVE) $(FST_FILE) $(SESSION_FILE) & \
+		else \
+			echo "Opening waveforms: $(FST_FILE)"; \
+			$(GTKWAVE) $(FST_FILE) & \
+		fi \
 	else \
 		echo "ERROR: No waveform files found"; \
 		echo "TIP: Run 'make sim' first to generate waveforms"; \
@@ -314,6 +331,37 @@ waves:
 
 .PHONY: sim-waves
 sim-waves: sim waves
+
+.PHONY: save-session
+save-session:
+	@echo "Creating GTKWave session template: $(SESSION_FILE)"
+	@mkdir -p $(WAVE_DIR)
+	@if [ -f "$(WAVE_FILE)" ] || [ -f "$(FST_FILE)" ]; then \
+		echo "[*] 1.3.88" > $(SESSION_FILE); \
+		echo "[dumpfile] \"$(TESTBENCH).vcd\"" >> $(SESSION_FILE); \
+		echo "[dumpfile_mtime] \"$(shell date)\"" >> $(SESSION_FILE); \
+		echo "[dumpfile_size] $(shell [ -f "$(WAVE_FILE)" ] && wc -c < "$(WAVE_FILE)" || echo 0)" >> $(SESSION_FILE); \
+		echo "[savefile] \"$(TESTBENCH).gtkw\"" >> $(SESSION_FILE); \
+		echo "[timestart] 0" >> $(SESSION_FILE); \
+		echo "[size] 1920 1080" >> $(SESSION_FILE); \
+		echo "[pos] -1 -1" >> $(SESSION_FILE); \
+		echo "*-2.000000 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1" >> $(SESSION_FILE); \
+		echo "[sst_width] 197" >> $(SESSION_FILE); \
+		echo "[signals_width] 230" >> $(SESSION_FILE); \
+		echo "[sst_expanded] 1" >> $(SESSION_FILE); \
+		echo "[sst_vpaned_height] 540" >> $(SESSION_FILE); \
+		echo "Template session file created: $(SESSION_FILE)"; \
+		echo ""; \
+		echo "Usage:"; \
+		echo "1. Run 'make waves' to open GTKWave"; \
+		echo "2. Add your signals, set colors, groupings, etc."; \
+		echo "3. In GTKWave: File -> Write Save File (Ctrl+S)"; \
+		echo "4. Save as $(SESSION_FILE)"; \
+		echo "5. Next time 'make waves' will automatically load your setup!"; \
+	else \
+		echo "ERROR: No waveform files found. Run 'make sim' first."; \
+		exit 1; \
+	fi
 
 # === GENERIC TARGETS (DELEGATE TO FAMILY-SPECIFIC) ===
 
@@ -563,7 +611,7 @@ endif
 clean:
 	@echo "Cleaning simulation and build outputs..."
 	rm -f $(SIM_DIR)/*.vvp
-	rm -f $(WAVE_DIR)/*.vcd $(WAVE_DIR)/*.fst $(WAVE_DIR)/*.lxt*
+	rm -f $(WAVE_DIR)/*.vcd $(WAVE_DIR)/*.fst $(WAVE_DIR)/*.lxt* $(WAVE_DIR)/*.gtkw
 	rm -f $(SYNTH_DIR)/*.json $(SYNTH_DIR)/*.ys $(SYNTH_DIR)/*.v
 	rm -f $(PNR_DIR)/*.asc $(PNR_DIR)/*.config $(PNR_DIR)/*.json
 	rm -f $(BITSTREAM_DIR)/*.bin $(BITSTREAM_DIR)/*.bit $(BITSTREAM_DIR)/*.fs

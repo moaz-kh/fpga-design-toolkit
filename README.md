@@ -52,11 +52,19 @@ your_project/
 ### 🔧 Professional Build System
 ```bash
 make sim           # Run simulation
-make waves         # View waveforms  
+make waves         # View waveforms (auto-loads session if available)
+make save-session  # Create GTKWave session template
 make synth-ice40   # Synthesize for iCE40
 make ice40         # Complete FPGA flow
 make prog-ice40    # Program device
 ```
+
+### 🌊 Enhanced Waveform Viewing
+Professional GTKWave integration with session management:
+- **Auto-session loading** - Save signal arrangements, colors, and groupings
+- **Template generation** - `make save-session` creates initial session file
+- **Persistent layouts** - Your waveform setup is restored automatically
+- **Quick workflow** - `make sim-waves` for simulation + waveform viewing
 
 ### 📚 Standard Modules Library
 Ready-to-use Verilog modules included in every project:
@@ -144,6 +152,17 @@ sudo apt install iverilog gtkwave yosys nextpnr-ice40 fpga-icestorm
 - **Project Status**: `make status` to see build state
 
 ## Examples & Tutorials
+
+### Set Up Custom Waveform Layout
+```bash
+# Run simulation and open waveforms
+make sim-waves
+
+# In GTKWave: arrange signals, set colors, create groups
+# Save your layout: File -> Write Save File (Ctrl+S)
+# Future runs automatically restore your setup!
+make waves  # Opens with your saved layout
+```
 
 ### Create LED Blinker
 ```verilog
