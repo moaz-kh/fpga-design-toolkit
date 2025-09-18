@@ -414,6 +414,14 @@ ifdef YOSYS
 		esac; \
 	done >> $(SYNTH_DIR)/yosys_script_ice40.ys
 	@echo "hierarchy -check -top $(TOP_MODULE)" >> $(SYNTH_DIR)/yosys_script_ice40.ys
+	@# Timing constraint information for iCE40 flow
+	@echo ""
+	@echo "=== iCE40 TIMING CONSTRAINT NOTICE ==="
+	@echo "Yosys (synthesis): No timing constraint support - logical synthesis only"
+	@echo "NextPNR (P&R): Timing constraints via PCF file: sources/constraints/$(TOP_MODULE).pcf"
+	@echo "Use 'set_frequency <clock_net> <freq_mhz>' in PCF file for timing constraints"
+	@echo "====================================="
+	@echo ""
 	@echo "synth_ice40 -top $(TOP_MODULE) -json $(ICE40_JSON)" >> $(SYNTH_DIR)/yosys_script_ice40.ys
 	@echo "stat -top $(TOP_MODULE)" >> $(SYNTH_DIR)/yosys_script_ice40.ys
 	@echo "write_verilog $(SYNTH_DIR)/$(PROJECT)_ice40_synth.v" >> $(SYNTH_DIR)/yosys_script_ice40.ys
@@ -444,16 +452,34 @@ ifdef NEXTPNR_ICE40
 	@echo "Running iCE40 place and route for $(FPGA_DEVICE) ($(FPGA_PACKAGE))..."
 	@mkdir -p $(PNR_DIR) $(REPORTS_DIR)
 	@echo "Auto-configured: Family=$(FPGA_FAMILY), Device=$(FPGA_DEVICE), Package=$(FPGA_PACKAGE)"
+	@echo ""
+	@echo "=== PCF CONSTRAINT CHECK ==="
 	@if [ ! -f "$(PCF_FILE)" ]; then \
-		echo "WARNING: Constraint file $(PCF_FILE) not found"; \
+		echo "⚠ WARNING: Constraint file $(PCF_FILE) not found"; \
 		echo "Running without constraints (I/O pins will be auto-assigned)"; \
+		echo ""; \
+		echo "For timing constraints, create $(PCF_FILE) with:"; \
+		echo "  set_frequency <clock_net> <frequency_mhz>"; \
+		echo "  set_io <signal> <pin_number>"; \
+		echo "==========================="; \
+		echo ""; \
 		$(NEXTPNR_ICE40) --$(FPGA_DEVICE) --package $(FPGA_PACKAGE) \
 			--json $(ICE40_JSON) --asc $(ICE40_ASC) \
 			--report $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.json 2>&1 | tee $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.log; \
 	else \
-		echo "Using constraint file: $(PCF_FILE)"; \
+		echo "✓ Found PCF constraint file: $(PCF_FILE)"; \
+		if grep -q "set_frequency" "$(PCF_FILE)" 2>/dev/null; then \
+			FREQ_LINE=$$(grep "set_frequency" "$(PCF_FILE)" | head -1); \
+			echo "✓ Timing constraint found: $$FREQ_LINE"; \
+		else \
+			echo "⚠ WARNING: No timing constraints found in $(PCF_FILE)"; \
+			echo "  Add: set_frequency <clock_net> <frequency_mhz>"; \
+		fi; \
+		echo "==========================="; \
+		echo ""; \
 		$(NEXTPNR_ICE40) --$(FPGA_DEVICE) --package $(FPGA_PACKAGE) \
 			--json $(ICE40_JSON) --pcf $(PCF_FILE) --asc $(ICE40_ASC) \
+			--pcf-allow-unconstrained \
 			--report $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.json 2>&1 | tee $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.log; \
 	fi
 	@echo "iCE40 place and route complete!"
@@ -478,14 +504,43 @@ ifdef ICETIME
 	fi
 	@echo "Running iCE40 timing analysis for $(FPGA_DEVICE)..."
 	@mkdir -p $(REPORTS_DIR)
+	@echo ""
+	@echo "=== TIMING ANALYSIS NOTICE ==="
+	@echo "icetime analyzes post-implementation timing without input constraints."
+	@echo "Results show ACHIEVED timing vs what was REQUESTED in PCF/SDC files."
+	@if [ -f "sources/constraints/$(TOP_MODULE).pcf" ] && grep -q "set_frequency" "sources/constraints/$(TOP_MODULE).pcf" 2>/dev/null; then \
+		REQUESTED_FREQ=$$(grep "set_frequency" "sources/constraints/$(TOP_MODULE).pcf" | awk '{print $$3}' | head -1); \
+		echo "Requested frequency: $$REQUESTED_FREQ MHz (from PCF)"; \
+	else \
+		echo "No frequency constraint found - analyzing unconstrained timing"; \
+	fi
+	@echo "=============================="
+	@echo ""
 	@icetime -d $(FPGA_DEVICE) -mtr $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt $(ICE40_ASC) 2>&1 | tee $(REPORTS_DIR)/$(PROJECT)_ice40_timing.log
 	@echo "Timing analysis complete!"
 	@echo "   Device: $(FPGA_DEVICE)"
 	@echo "   Report: $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt"
 	@echo "   Log: $(REPORTS_DIR)/$(PROJECT)_ice40_timing.log"
 	@echo ""
-	@echo "Timing Summary:"
-	@grep -E "Total path delay|Max frequency" $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt || echo "Check full report for timing details"
+	@echo "=== TIMING CONSTRAINT VERIFICATION ==="
+	@if [ -f "sources/constraints/$(TOP_MODULE).pcf" ] && grep -q "set_frequency" "sources/constraints/$(TOP_MODULE).pcf" 2>/dev/null; then \
+		REQUESTED_FREQ=$$(grep "set_frequency" "sources/constraints/$(TOP_MODULE).pcf" | awk '{print $$3}' | head -1); \
+		ACHIEVED_FREQ=$$(grep -E "Total path delay.*MHz" $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt | sed 's/.*(\(.*\) MHz).*/\1/' | head -1 2>/dev/null || echo "unknown"); \
+		echo "Requested: $$REQUESTED_FREQ MHz (from PCF constraint)"; \
+		echo "Achieved:  $$ACHIEVED_FREQ MHz (from timing analysis)"; \
+		if [ "$$ACHIEVED_FREQ" != "unknown" ]; then \
+			TIMING_MET=$$(echo "$$ACHIEVED_FREQ >= $$REQUESTED_FREQ" | bc -l 2>/dev/null || echo "0"); \
+			if [ "$$TIMING_MET" = "1" ]; then \
+				echo "✓ TIMING CONSTRAINT MET"; \
+			else \
+				echo "⚠ TIMING CONSTRAINT VIOLATED"; \
+			fi; \
+		fi; \
+	else \
+		echo "No timing constraints specified - unconstrained analysis"; \
+		grep -E "Total path delay.*MHz" $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt | head -1 || echo "Check full report for timing details"; \
+	fi
+	@echo "====================================="
 else
 	@echo "ERROR: icetime not available. Install with: sudo apt install fpga-icestorm"
 	@exit 1

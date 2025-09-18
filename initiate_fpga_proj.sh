@@ -490,7 +490,20 @@ if [[ ! $REPLY =~ ^[Nn]$ ]]; then
     
     cat > "$PROJECT_NAME/sources/constraints/adder.pcf" << 'EOF'
 # iCE40 PCF Constraints for 8-bit Adder
-# Target: iCEBreaker board (iCE40UP5K)
+# Target: iCE40UP5K-SG48 package
+
+# =============================================================================
+# TIMING CONSTRAINTS
+# =============================================================================
+
+# Primary clock frequency constraint
+# 50 MHz target frequency (conservative timing for adder design)
+# Users can modify this frequency based on their timing requirements
+set_frequency clk 50
+
+# =============================================================================
+# PIN ASSIGNMENTS - iCEBreaker board pinout
+# =============================================================================
 
 # Input operand A[7:0]
 set_io a[0] 4
@@ -527,7 +540,14 @@ set_io sum[7] 27
 
 # Carry output
 set_io cout 18
- 
+
+# =============================================================================
+# USAGE NOTES:
+# - Modify set_frequency to match your design requirements
+# - Pin assignments are for iCEBreaker board - modify for your target board
+# - For timing-only analysis, comment out pin assignments and use set_frequency only
+# =============================================================================
+
 EOF
 
     echo "adder.pcf constraint file created"
