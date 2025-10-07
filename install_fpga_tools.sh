@@ -2,15 +2,29 @@
 # Simple FPGA Design Tools Installer
 # Focus: OSS CAD Suite (comprehensive toolchain)
 # Target: WSL2 Ubuntu 22.04+
-# Usage: ./install_fpga_tools.sh [--cleanup]
+# Updated Oct 2025: Auto-fetch and auto-download latest OSS CAD Suite version
+# Updated Oct 2025: Unified installer with Docker and Quartus support
+# Usage: ./install_fpga_tools.sh [--mode MODE] [--cleanup] [--reinstall] [--version YYYY-MM-DD]
 
 set -euo pipefail
 
 # Configuration
 readonly WORKSPACE_DIR="$HOME/fpga_workspace"
-readonly OSS_CAD_VERSION="20231102"
-readonly OSS_CAD_FILE="oss-cad-suite-linux-x64-${OSS_CAD_VERSION}.tgz"
-readonly OSS_CAD_URL="https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2023-11-02/${OSS_CAD_FILE}"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# OSS CAD Suite version configuration
+# Updated Oct 2025: Auto-fetch latest version from GitHub instead of hardcoded date
+# User can override with --version flag (e.g., --version 2023-11-02)
+OSS_CAD_VERSION=""  # Will be auto-detected or set by user
+OSS_CAD_FILE=""
+OSS_CAD_URL=""
+
+# Installation mode
+# oss: Open-source FPGA tools only (default)
+# docker: Docker engine only
+# quartus: Docker + Quartus container
+# all: Everything (OSS + Docker + Quartus)
+INSTALL_MODE=""
 
 # Colors for output
 readonly GREEN='\033[0;32m'
@@ -25,26 +39,83 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo "Options:"
-    echo "  --cleanup    Remove all installed FPGA tools and clean up"
-    echo "  --reinstall  Clean up and reinstall all tools"
-    echo "  -h, --help   Show this help message"
+    echo "  --mode <mode>      Installation mode (if not provided, interactive menu shown)"
+    echo "                     oss      - Open-source FPGA tools only (OSS CAD Suite, Icarus, GTKWave)"
+    echo "                     docker   - Docker engine only"
+    echo "                     quartus  - Docker + Quartus Prime container"
+    echo "                     all      - Everything (OSS tools + Docker + Quartus)"
+    echo "  --cleanup          Remove installed components (interactive menu if not specified)"
+    echo "  --cleanup-oss      Remove only OSS CAD Suite and related tools"
+    echo "  --cleanup-docker   Remove only Docker engine"
+    echo "  --cleanup-quartus  Remove only Quartus Docker containers"
+    echo "  --reinstall        Clean up and reinstall (respects --mode)"
+    echo "  --version <date>   Install specific OSS CAD Suite version (format: YYYY-MM-DD)"
+    echo "                     Example: --version 2023-11-02"
+    echo "  -h, --help         Show this help message"
     echo ""
-    echo "Default: Install FPGA tools (if not already installed)"
+    echo "Examples:"
+    echo "  $0                          # Interactive menu to choose installation mode"
+    echo "  $0 --mode=oss               # Install open-source FPGA tools only"
+    echo "  $0 --mode=quartus           # Install Docker + Quartus (for Intel FPGA)"
+    echo "  $0 --mode=all               # Install everything"
+    echo "  $0 --cleanup                # Interactive cleanup menu"
+    echo "  $0 --cleanup-docker         # Remove Docker only"
 }
 
 # Parse command line arguments
 CLEANUP_MODE=false
+CLEANUP_OSS=false
+CLEANUP_DOCKER=false
+CLEANUP_QUARTUS=false
 REINSTALL_MODE=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        --mode=*)
+            INSTALL_MODE="${1#*=}"
+            shift
+            ;;
+        --mode)
+            if [[ -z "${2:-}" ]] || [[ "$2" == --* ]]; then
+                log_error "Option --mode requires an argument (oss|docker|quartus|all)"
+                show_usage
+                exit 1
+            fi
+            INSTALL_MODE="$2"
+            shift 2
+            ;;
         --cleanup)
             CLEANUP_MODE=true
+            shift
+            ;;
+        --cleanup-oss)
+            CLEANUP_MODE=true
+            CLEANUP_OSS=true
+            shift
+            ;;
+        --cleanup-docker)
+            CLEANUP_MODE=true
+            CLEANUP_DOCKER=true
+            shift
+            ;;
+        --cleanup-quartus)
+            CLEANUP_MODE=true
+            CLEANUP_QUARTUS=true
             shift
             ;;
         --reinstall)
             REINSTALL_MODE=true
             shift
+            ;;
+        --version)
+            # User-specified OSS CAD Suite version (format: YYYY-MM-DD)
+            if [[ -z "${2:-}" ]] || [[ "$2" == --* ]]; then
+                log_error "Option --version requires a date argument (format: YYYY-MM-DD)"
+                show_usage
+                exit 1
+            fi
+            OSS_CAD_VERSION="$2"
+            shift 2
             ;;
         -h|--help)
             show_usage
@@ -58,17 +129,92 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [ "$CLEANUP_MODE" = true ]; then
-    echo "Simple FPGA Tools Cleanup"
-    echo "Removing All Installed Tools"
-elif [ "$REINSTALL_MODE" = true ]; then
-    echo "Simple FPGA Tools Reinstaller"
-    echo "Clean + Fresh Install"
-else
-    echo "Simple FPGA Tools Installer"
-    echo "OSS CAD Suite + Essential Tools"
+# Validate INSTALL_MODE if provided
+if [[ -n "$INSTALL_MODE" ]]; then
+    case "$INSTALL_MODE" in
+        oss|docker|quartus|all)
+            # Valid mode
+            ;;
+        *)
+            log_error "Invalid mode: $INSTALL_MODE"
+            log_error "Valid modes: oss, docker, quartus, all"
+            show_usage
+            exit 1
+            ;;
+    esac
 fi
-echo "========================================"
+
+if [ "$CLEANUP_MODE" = true ]; then
+    echo "FPGA Tools Cleanup"
+    echo "========================================"
+elif [ "$REINSTALL_MODE" = true ]; then
+    echo "FPGA Tools Reinstaller"
+    echo "========================================"
+else
+    echo "FPGA Tools Installer"
+    echo "========================================"
+fi
+
+# Fetch latest OSS CAD Suite version from GitHub
+# Updated Oct 2025: Automatically detect latest release instead of hardcoded version
+# Returns: Latest release tag (format: YYYY-MM-DD) or exits on error
+# Note: Log messages go to stderr to avoid polluting function return value
+fetch_latest_oss_cad_version() {
+    log_info "Fetching latest OSS CAD Suite version from GitHub..." >&2
+
+    # Query GitHub API for latest release
+    local api_url="https://api.github.com/repos/YosysHQ/oss-cad-suite-build/releases/latest"
+    local latest_tag=""
+
+    # Try using curl first (most common)
+    if command -v curl &> /dev/null; then
+        latest_tag=$(curl -s "$api_url" | grep '"tag_name"' | cut -d'"' -f4)
+    elif command -v wget &> /dev/null; then
+        latest_tag=$(wget -qO- "$api_url" | grep '"tag_name"' | cut -d'"' -f4)
+    else
+        log_error "Neither curl nor wget found - cannot fetch latest version" >&2
+        log_error "Please install curl or wget, or specify version manually with --version" >&2
+        exit 1
+    fi
+
+    # Validate we got a version (format: YYYY-MM-DD)
+    if [[ -z "$latest_tag" ]]; then
+        log_error "Failed to fetch latest OSS CAD Suite version from GitHub" >&2
+        log_error "Please check your internet connection or specify version manually with --version" >&2
+        exit 1
+    fi
+
+    # Validate format (YYYY-MM-DD)
+    if [[ ! "$latest_tag" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+        log_error "Invalid version format from GitHub: $latest_tag" >&2
+        log_error "Expected format: YYYY-MM-DD" >&2
+        exit 1
+    fi
+
+    log_info "Latest OSS CAD Suite version: $latest_tag" >&2
+    echo "$latest_tag"
+}
+
+# Set OSS CAD Suite version and construct download URLs
+# Updated Oct 2025: Dynamic version resolution
+# If user didn't specify --version, auto-fetch latest from GitHub
+setup_oss_cad_version() {
+    # If version not set by user, fetch latest from GitHub
+    if [[ -z "$OSS_CAD_VERSION" ]]; then
+        OSS_CAD_VERSION=$(fetch_latest_oss_cad_version)
+    else
+        log_info "Using user-specified OSS CAD Suite version: $OSS_CAD_VERSION"
+    fi
+
+    # Convert YYYY-MM-DD to YYYYMMDD for filename
+    local version_compact="${OSS_CAD_VERSION//-/}"
+
+    # Construct filename and download URL
+    OSS_CAD_FILE="oss-cad-suite-linux-x64-${version_compact}.tgz"
+    OSS_CAD_URL="https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_VERSION}/${OSS_CAD_FILE}"
+
+    log_info "Download URL: $OSS_CAD_URL"
+}
 
 # Basic checks
 check_wsl2() {
@@ -220,53 +366,87 @@ install_prerequisites() {
     log_info "Prerequisites installed"
 }
 
-# Install OSS CAD Suite (manual download approach)
+# Install OSS CAD Suite (automatic download with manual fallback)
+# Updated Oct 2025: Added automatic download using wget/curl
 install_oss_cad_suite() {
     log_info "Installing OSS CAD Suite..."
-    
+
+    # Setup version and URLs (auto-fetch latest or use user-specified)
+    setup_oss_cad_version
+
     mkdir -p "$WORKSPACE_DIR"
     cd "$WORKSPACE_DIR"
-    
+
     if [ -d "oss-cad-suite" ]; then
         log_warn "OSS CAD Suite already exists, skipping installation"
         return 0
     fi
-    
-    # Check if user already downloaded the file
+
+    # Check if file already exists (from previous download attempt)
     if [ ! -f "$OSS_CAD_FILE" ]; then
-        echo ""
-        echo "========================================"
-        echo "Manual Download Required"
-        echo "========================================"
-        echo ""
-        echo "Please download OSS CAD Suite manually:"
-        echo ""
-        echo "1. Open this link in your browser:"
-        echo "   $OSS_CAD_URL"
-        echo ""
-        echo "2. Save the file to this directory:"
-        echo "   $WORKSPACE_DIR"
-        echo ""
-        echo "3. The file should be named:"
-        echo "   $OSS_CAD_FILE"
-        echo ""
-        echo "4. Come back here and confirm when download is complete"
-        echo ""
-        
-        read -p "Have you downloaded the file? [y/N]: " -n 1 -r
-        echo
-        
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            echo "Download cancelled. Please download manually and re-run this script."
-            exit 0
+        log_info "Downloading OSS CAD Suite $OSS_CAD_VERSION (this may take 5-15 minutes)..."
+        log_info "File size: ~1.5GB"
+
+        # Try automatic download with wget or curl
+        local download_success=false
+
+        if command -v wget &> /dev/null; then
+            log_info "Downloading with wget..."
+            if wget --show-progress -O "$OSS_CAD_FILE" "$OSS_CAD_URL" 2>&1; then
+                download_success=true
+            else
+                log_warn "wget download failed"
+                rm -f "$OSS_CAD_FILE"  # Remove partial download
+            fi
+        elif command -v curl &> /dev/null; then
+            log_info "Downloading with curl..."
+            if curl -L --progress-bar -o "$OSS_CAD_FILE" "$OSS_CAD_URL"; then
+                download_success=true
+            else
+                log_warn "curl download failed"
+                rm -f "$OSS_CAD_FILE"  # Remove partial download
+            fi
         fi
-        
-        # Check again if file exists
-        if [ ! -f "$OSS_CAD_FILE" ]; then
-            log_error "File $OSS_CAD_FILE not found in $WORKSPACE_DIR"
-            log_error "Please ensure you downloaded the correct file to the correct location"
-            exit 1
+
+        # Fallback to manual download if automatic failed
+        if [ "$download_success" = false ]; then
+            log_warn "Automatic download failed, falling back to manual download"
+            echo ""
+            echo "========================================"
+            echo "Manual Download Required"
+            echo "========================================"
+            echo ""
+            echo "Please download OSS CAD Suite manually:"
+            echo ""
+            echo "1. Open this link in your browser:"
+            echo "   $OSS_CAD_URL"
+            echo ""
+            echo "2. Save the file to this directory:"
+            echo "   $WORKSPACE_DIR"
+            echo ""
+            echo "3. The file should be named:"
+            echo "   $OSS_CAD_FILE"
+            echo ""
+            echo "4. Come back here and confirm when download is complete"
+            echo ""
+
+            read -p "Have you downloaded the file? [y/N]: " -n 1 -r
+            echo
+
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                echo "Download cancelled. Please download manually and re-run this script."
+                exit 0
+            fi
+
+            # Check again if file exists
+            if [ ! -f "$OSS_CAD_FILE" ]; then
+                log_error "File $OSS_CAD_FILE not found in $WORKSPACE_DIR"
+                log_error "Please ensure you downloaded the correct file to the correct location"
+                exit 1
+            fi
         fi
+    else
+        log_info "Found existing OSS CAD Suite file, using it"
     fi
     
     # Verify file exists and has content
@@ -515,136 +695,464 @@ cleanup_python_packages() {
 
 cleanup_bashrc() {
     log_info "Removing PATH entries from ~/.bashrc..."
-    
+
     # Create a backup
     cp ~/.bashrc ~/.bashrc.backup.$(date +%Y%m%d_%H%M%S)
-    
+
     # Remove OSS CAD Suite entries
     grep -v "oss-cad-suite" ~/.bashrc > ~/.bashrc.tmp
     grep -v "OSS CAD Suite for FPGA development" ~/.bashrc.tmp > ~/.bashrc.new
     mv ~/.bashrc.new ~/.bashrc
     rm -f ~/.bashrc.tmp
-    
+
     log_info "PATH entries removed from ~/.bashrc"
     log_info "Backup created at ~/.bashrc.backup.*"
 }
 
+# Install Docker by calling install_docker.sh
+install_docker_engine() {
+    log_info "Installing Docker engine..."
+
+    if [ ! -f "$SCRIPT_DIR/install_docker.sh" ]; then
+        log_error "install_docker.sh not found in $SCRIPT_DIR"
+        log_error "Cannot install Docker without the installation script"
+        exit 1
+    fi
+
+    log_info "Running: $SCRIPT_DIR/install_docker.sh"
+    echo ""
+
+    if bash "$SCRIPT_DIR/install_docker.sh"; then
+        log_info "Docker installation completed successfully"
+        return 0
+    else
+        log_error "Docker installation failed"
+        return 1
+    fi
+}
+
+# Install Quartus Docker by calling install_quartus_docker.sh
+install_quartus_docker() {
+    log_info "Installing Quartus Prime Lite Docker..."
+
+    if [ ! -f "$SCRIPT_DIR/install_quartus_docker.sh" ]; then
+        log_error "install_quartus_docker.sh not found in $SCRIPT_DIR"
+        log_error "Cannot install Quartus Docker without the installation script"
+        exit 1
+    fi
+
+    log_info "Running: $SCRIPT_DIR/install_quartus_docker.sh"
+    echo ""
+
+    if bash "$SCRIPT_DIR/install_quartus_docker.sh"; then
+        log_info "Quartus Docker installation completed successfully"
+        return 0
+    else
+        log_error "Quartus Docker installation failed"
+        return 1
+    fi
+}
+
+# Cleanup Quartus Docker by calling install_quartus_docker.sh
+cleanup_quartus_docker() {
+    log_info "Cleaning up Quartus Docker..."
+
+    if [ -f "$SCRIPT_DIR/install_quartus_docker.sh" ]; then
+        log_info "Running: $SCRIPT_DIR/install_quartus_docker.sh --cleanup"
+        bash "$SCRIPT_DIR/install_quartus_docker.sh" --cleanup
+    else
+        log_warn "install_quartus_docker.sh not found, skipping Quartus cleanup"
+    fi
+}
+
+# Cleanup Docker engine by calling install_docker.sh
+cleanup_docker_engine() {
+    log_info "Cleaning up Docker engine..."
+
+    if [ -f "$SCRIPT_DIR/install_docker.sh" ]; then
+        log_info "Running: $SCRIPT_DIR/install_docker.sh --cleanup"
+        bash "$SCRIPT_DIR/install_docker.sh" --cleanup
+    else
+        log_warn "install_docker.sh not found, skipping Docker cleanup"
+    fi
+}
+
+# Interactive mode selection menu
+show_installation_menu() {
+    echo ""
+    echo "========================================"
+    echo "FPGA Tools Installation Menu"
+    echo "========================================"
+    echo ""
+    echo "What would you like to install?"
+    echo ""
+    echo "1) Open-source FPGA tools (OSS CAD Suite, Icarus Verilog, GTKWave)"
+    echo "   - Complete open-source toolchain for iCE40 and other FPGAs"
+    echo "   - No license required, ~1.5GB download"
+    echo ""
+    echo "2) Docker engine only"
+    echo "   - Container platform for isolated development environments"
+    echo "   - Required for Quartus Docker option"
+    echo ""
+    echo "3) Quartus Prime Lite Docker (includes Docker)"
+    echo "   - Intel Quartus in Docker container"
+    echo "   - For Intel/Altera FPGA development"
+    echo "   - Free, no license required, ~2GB download"
+    echo ""
+    echo "4) Everything (OSS tools + Docker + Quartus)"
+    echo "   - Complete FPGA development environment"
+    echo "   - Both open-source and Intel toolchains"
+    echo ""
+    echo "5) Exit"
+    echo ""
+
+    while true; do
+        read -p "Enter your choice [1-5]: " choice
+        case $choice in
+            1)
+                INSTALL_MODE="oss"
+                log_info "Selected: Open-source FPGA tools"
+                break
+                ;;
+            2)
+                INSTALL_MODE="docker"
+                log_info "Selected: Docker engine"
+                break
+                ;;
+            3)
+                INSTALL_MODE="quartus"
+                log_info "Selected: Quartus Prime Lite Docker"
+                break
+                ;;
+            4)
+                INSTALL_MODE="all"
+                log_info "Selected: Everything"
+                break
+                ;;
+            5)
+                log_info "Installation cancelled"
+                exit 0
+                ;;
+            *)
+                echo "Invalid choice. Please enter 1-5."
+                ;;
+        esac
+    done
+    echo ""
+}
+
+# Interactive cleanup menu
+show_cleanup_menu() {
+    echo ""
+    echo "========================================"
+    echo "FPGA Tools Cleanup Menu"
+    echo "========================================"
+    echo ""
+    echo "What would you like to remove?"
+    echo ""
+    echo "1) OSS CAD Suite and related tools"
+    echo "2) Docker engine"
+    echo "3) Quartus Docker containers and images"
+    echo "4) Everything (all components)"
+    echo "5) Cancel"
+    echo ""
+
+    while true; do
+        read -p "Enter your choice [1-5]: " choice
+        case $choice in
+            1)
+                CLEANUP_OSS=true
+                log_info "Selected: Remove OSS CAD Suite"
+                break
+                ;;
+            2)
+                CLEANUP_DOCKER=true
+                log_info "Selected: Remove Docker"
+                break
+                ;;
+            3)
+                CLEANUP_QUARTUS=true
+                log_info "Selected: Remove Quartus Docker"
+                break
+                ;;
+            4)
+                CLEANUP_OSS=true
+                CLEANUP_DOCKER=true
+                CLEANUP_QUARTUS=true
+                log_info "Selected: Remove everything"
+                break
+                ;;
+            5)
+                log_info "Cleanup cancelled"
+                exit 0
+                ;;
+            *)
+                echo "Invalid choice. Please enter 1-5."
+                ;;
+        esac
+    done
+    echo ""
+}
+
 perform_cleanup() {
-    log_info "Starting complete cleanup..."
-    
+    log_info "Starting cleanup..."
+
+    # Show what will be removed
     echo ""
     echo "This will remove:"
-    echo "- OSS CAD Suite installation"
-    echo "- All apt packages installed by this script"
-    echo "- All Python packages installed by this script"
-    echo "- PATH entries from ~/.bashrc"
+    if [ "$CLEANUP_OSS" = true ]; then
+        echo "- OSS CAD Suite installation"
+        echo "- Apt packages (iverilog, gtkwave, verilator, etc.)"
+        echo "- Python packages (cocotb, amaranth, fusesoc)"
+        echo "- PATH entries from ~/.bashrc"
+    fi
+    if [ "$CLEANUP_DOCKER" = true ]; then
+        echo "- Docker engine and all containers"
+        echo "- Docker configuration files"
+    fi
+    if [ "$CLEANUP_QUARTUS" = true ]; then
+        echo "- Quartus Docker containers and images"
+    fi
     echo ""
-    
+
     read -p "Are you sure you want to proceed? [y/N]: " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         log_info "Cleanup cancelled"
         exit 0
     fi
-    
-    cleanup_oss_cad_suite
-    cleanup_apt_packages
-    cleanup_python_packages
-    cleanup_bashrc
-    
+
+    # Perform cleanup based on selected components
+    if [ "$CLEANUP_OSS" = true ]; then
+        cleanup_oss_cad_suite
+        cleanup_apt_packages
+        cleanup_python_packages
+        cleanup_bashrc
+    fi
+
+    if [ "$CLEANUP_QUARTUS" = true ]; then
+        cleanup_quartus_docker
+    fi
+
+    if [ "$CLEANUP_DOCKER" = true ]; then
+        cleanup_docker_engine
+    fi
+
     echo ""
     echo "========================================"
     echo "Cleanup Complete!"
     echo "========================================"
     echo ""
-    echo "All FPGA tools have been removed."
+    echo "Selected components have been removed."
     echo "Please restart your terminal or run: source ~/.bashrc"
     echo ""
+}
+
+# Install OSS CAD Suite and related tools
+install_oss_tools() {
+    log_info "Installing open-source FPGA tools..."
+
+    echo ""
+    echo "This will install:"
+    echo "- OSS CAD Suite (latest version - auto-downloaded)"
+    echo "- Icarus Verilog + GTKWave (simulation and waveforms)"
+    echo "- Verilator (high-performance simulation)"
+    echo "- Python packages (CocoTB, Amaranth, FuseSoC)"
+    echo "- Git LFS for large file handling"
+    echo ""
+    echo "OSS CAD Suite will be automatically downloaded (~1.5GB)"
+    echo "Installation location: $WORKSPACE_DIR"
+    echo ""
+
+    read -p "Proceed with OSS tools installation? [y/N]: " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        log_info "OSS tools installation cancelled"
+        return 1
+    fi
+
+    install_prerequisites
+    install_oss_cad_suite
+    install_essential_apt_tools
+
+    echo ""
+    echo "========================================"
+    echo "Verifying OSS Tools Installation..."
+    echo "========================================"
+
+    if ! verify_installation; then
+        echo ""
+        log_error "Installation failed - some essential tools are missing"
+        log_error "Please restart terminal (source ~/.bashrc) and try again"
+        return 1
+    fi
+
+    echo ""
+    log_info "OSS CAD Suite installation completed successfully!"
+    return 0
 }
 
 # Main function
 main() {
     # Handle cleanup mode
     if [ "$CLEANUP_MODE" = true ]; then
+        # If no specific cleanup flags set, show interactive menu
+        if [ "$CLEANUP_OSS" = false ] && [ "$CLEANUP_DOCKER" = false ] && [ "$CLEANUP_QUARTUS" = false ]; then
+            show_cleanup_menu
+        fi
         perform_cleanup
         exit 0
     fi
-    
+
     # Handle reinstall mode
     if [ "$REINSTALL_MODE" = true ]; then
         log_info "Reinstall mode: cleaning up first..."
+
+        # For reinstall, set cleanup flags based on install mode
+        if [ -z "$INSTALL_MODE" ]; then
+            show_installation_menu
+        fi
+
+        case "$INSTALL_MODE" in
+            oss)
+                CLEANUP_OSS=true
+                ;;
+            docker)
+                CLEANUP_DOCKER=true
+                ;;
+            quartus)
+                CLEANUP_DOCKER=true
+                CLEANUP_QUARTUS=true
+                ;;
+            all)
+                CLEANUP_OSS=true
+                CLEANUP_DOCKER=true
+                CLEANUP_QUARTUS=true
+                ;;
+        esac
+
         perform_cleanup
         log_info "Proceeding with fresh installation..."
         echo ""
     fi
-    
+
+    # If mode not specified, show interactive menu
+    if [ -z "$INSTALL_MODE" ]; then
+        show_installation_menu
+    fi
+
+    # Basic checks
     check_wsl2
     check_and_update_wsl
     check_resources
-    
-    echo ""
-    echo "This will install:"
-    echo "- OSS CAD Suite (manual download required)"
-    echo "- Icarus Verilog + GTKWave (simulation and waveforms)"
-    echo "- Verilator (high-performance simulation)"
-    echo "- Python packages (CocoTB, Amaranth, FuseSoC)"
-    echo "- Git LFS for large file handling"
-    echo ""
-    echo "OSS CAD Suite requires manual download (no automatic download)"
-    echo "Location: $WORKSPACE_DIR"
-    echo ""
-    
-    read -p "Proceed with installation? [y/N]: " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 0
-    fi
-    
-    install_prerequisites
-    install_oss_cad_suite
-    install_essential_apt_tools
-    
-    echo ""
-    echo "========================================"
-    echo "Verifying Installation..."
-    echo "========================================"
-    
-    if ! verify_installation; then
-        echo ""
-        log_error "Installation failed - some essential tools are missing"
-        log_error "Please restart terminal (source ~/.bashrc) and try again"
-        log_error "If problems persist, install manually: sudo apt install iverilog gtkwave yosys"
-        exit 1
-    fi
-    
-    echo ""
-    echo "========================================"
-    echo "Installation Complete!"
-    echo "========================================"
-    echo ""
-    echo "Location: $WORKSPACE_DIR"
-    echo ""
-    echo "Next steps:"
-    echo "1. Restart terminal or run: source ~/.bashrc"
-    echo "2. All tools needed for initiate_fpga_proj.sh are now installed"
-    echo "3. Create projects with fpga-design-toolkit:"
-    echo "   ./initiate_fpga_proj.sh"
-    echo "4. Test tools:"
-    echo "   yosys -V"
-    echo "   iverilog -V"
-    echo ""
-    echo "Installation method: Manual download + apt packages"
-    echo ""
-    echo "Create new projects with:"
-    echo "- fpga-design-toolkit: ./initiate_fpga_proj.sh"
-    echo "- Manual project setup using installed tools"
-    echo ""
-    echo "All tools required by initiate_fpga_proj.sh are now installed!"
-    echo ""
-    echo "Documentation:"
-    echo "- OSS CAD Suite: https://github.com/YosysHQ/oss-cad-suite-build"
-    echo "- Yosys manual: http://www.clifford.at/yosys/documentation.html"
-    echo "- NextPNR docs: https://github.com/YosysHQ/nextpnr"
+
+    # Execute installation based on mode
+    case "$INSTALL_MODE" in
+        oss)
+            log_info "Installing open-source FPGA tools..."
+            if install_oss_tools; then
+                echo ""
+                echo "========================================"
+                echo "Installation Complete!"
+                echo "========================================"
+                echo ""
+                echo "Next steps:"
+                echo "1. Restart terminal or run: source ~/.bashrc"
+                echo "2. Create projects: ./initiate_fpga_proj.sh"
+                echo "3. Test tools: yosys -V, iverilog -V"
+            fi
+            ;;
+
+        docker)
+            log_info "Installing Docker engine..."
+            if install_docker_engine; then
+                echo ""
+                echo "========================================"
+                echo "Installation Complete!"
+                echo "========================================"
+                echo ""
+                echo "Next steps:"
+                echo "1. Restart terminal to apply Docker group membership"
+                echo "2. Test Docker: docker run hello-world"
+                echo "3. Install Quartus: ./install_fpga_tools.sh --mode=quartus"
+            fi
+            ;;
+
+        quartus)
+            log_info "Installing Quartus Prime Lite Docker..."
+            log_info "This will install Docker first (if needed), then Quartus container"
+            echo ""
+
+            # Install Docker first
+            if ! install_docker_engine; then
+                log_error "Docker installation failed, cannot proceed with Quartus"
+                exit 1
+            fi
+
+            echo ""
+            log_info "Docker installed, proceeding with Quartus..."
+            echo ""
+
+            # Install Quartus
+            if install_quartus_docker; then
+                echo ""
+                echo "========================================"
+                echo "Installation Complete!"
+                echo "========================================"
+                echo ""
+                echo "Next steps:"
+                echo "1. Restart terminal to apply Docker group membership"
+                echo "2. Use Quartus wrapper scripts in quartus_env/ directory"
+            fi
+            ;;
+
+        all)
+            log_info "Installing everything (OSS tools + Docker + Quartus)..."
+            echo ""
+
+            # Install OSS tools
+            log_info "Step 1/3: Installing open-source FPGA tools..."
+            if ! install_oss_tools; then
+                log_error "OSS tools installation failed"
+                exit 1
+            fi
+
+            echo ""
+            log_info "Step 2/3: Installing Docker engine..."
+            if ! install_docker_engine; then
+                log_error "Docker installation failed"
+                exit 1
+            fi
+
+            echo ""
+            log_info "Step 3/3: Installing Quartus Prime Lite Docker..."
+            if ! install_quartus_docker; then
+                log_error "Quartus installation failed"
+                exit 1
+            fi
+
+            echo ""
+            echo "========================================"
+            echo "Complete Installation Finished!"
+            echo "========================================"
+            echo ""
+            echo "All components installed successfully:"
+            echo "✓ OSS CAD Suite (Yosys, NextPNR, Icarus, GTKWave)"
+            echo "✓ Docker engine"
+            echo "✓ Quartus Prime Lite Docker"
+            echo ""
+            echo "Next steps:"
+            echo "1. Restart terminal or run: source ~/.bashrc"
+            echo "2. Create open-source projects: ./initiate_fpga_proj.sh"
+            echo "3. Use Quartus: wrapper scripts in quartus_env/"
+            echo "4. Test tools: yosys -V, docker --version"
+            ;;
+
+        *)
+            log_error "Invalid installation mode: $INSTALL_MODE"
+            exit 1
+            ;;
+    esac
 }
 
 main "$@"
