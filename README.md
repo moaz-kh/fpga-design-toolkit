@@ -35,14 +35,25 @@ chmod +x install_fpga_tools.sh
 
 ### 2. Create Your First Project
 ```bash
-./initiate_fpga_proj.sh
-# Give your project a name, and you're ready to go!
+./initiate_proj.sh
+# Interactive menu appears - choose your toolchain:
+# 1) Open-source tools (iCE40, ECP5)
+# 2) Intel Quartus (MAX 10, Cyclone)
 ```
 
 ### 3. Test Everything Works
+
+**For Open-Source Projects:**
 ```bash
 cd your_project_name
-make quick-test
+make quick-test    # Simulation + waveforms + example adder
+```
+
+**For Quartus Projects:**
+```bash
+cd your_project_name
+make quartus-all   # Complete synthesis flow
+make quartus-prog  # Program FPGA
 ```
 
 **Done!** You now have a working FPGA project with simulation and synthesis support. Time to make some digital magic! ✨
@@ -62,6 +73,8 @@ your_project/
 ## Key Features
 
 ### 🔧 Professional Build System
+
+**Open-Source Toolchain:**
 ```bash
 make sim           # Run simulation
 make waves         # View waveforms (auto-loads session if available)
@@ -69,6 +82,18 @@ make save-session  # Create GTKWave session template
 make synth-ice40   # Synthesize for iCE40
 make ice40         # Complete FPGA flow
 make prog-ice40    # Program device
+```
+
+**Quartus Toolchain:**
+```bash
+make quartus-all   # Complete flow (map → fit → asm)
+make quartus-map   # Analysis & Synthesis
+make quartus-fit   # Place & Route
+make quartus-sta   # Static Timing Analysis
+make quartus-asm   # Generate bitstreams
+make quartus-prog  # Program FPGA (auto-detects .sof)
+make quartus-prog FLASH=1  # Program Flash memory
+make quartus-gui   # Open Quartus GUI
 ```
 
 ### 🌊 Enhanced Waveform Viewing
@@ -88,8 +113,19 @@ Ready-to-use Verilog modules included in every project:
 ### 🎯 FPGA Family Support
 - **iCE40** - Full open-source support (Lattice) - synth, P&R, bitstream, programming
 - **ECP5** - Open-source ready (Lattice) - framework in place for implementation
-- **Intel/Altera** - Via Quartus Docker (Cyclone, MAX 10, etc.) - full vendor toolchain
+- **Intel/Altera** - Via Quartus Docker (Cyclone IV, MAX 10) - full vendor toolchain with GUI support
 - **Xilinx** - Framework ready for future integration
+
+### 📟 Supported Development Boards
+
+**Open-Source Projects:**
+- Generic iCE40 boards (UP5K, HX8K, etc.)
+- Generic ECP5 boards
+
+**Quartus Projects:**
+- **TEI0010** - Intel MAX 10 (10M08SAU169C8GES) - Default board
+- **DE10-Lite** - Intel MAX 10 (10M50DAF484C7G)
+- **Cyclone IV E** - Generic EP4CE22F17C6
 
 ### 🧪 Example Projects
 Auto-generated 8-bit adder with:
@@ -203,7 +239,7 @@ sudo usermod -aG docker $USER  # Logout and login after this
 ## Documentation & Getting Help
 
 ### 📖 Built-in Documentation
-- **Quick Start**: Run `./initiate_fpga_proj.sh` and follow the friendly prompts
+- **Quick Start**: Run `./initiate_proj.sh` and follow the friendly prompts
 - **Makefile Help**: `make help` in any project shows all available commands
 - **Tool Check**: `make check-tools` verifies your installation is working
 - **Project Status**: `make status` shows current build state and file organization
@@ -221,6 +257,136 @@ sudo usermod -aG docker $USER  # Logout and login after this
 - Save your GTKWave sessions with `Ctrl+S` - they'll auto-load next time
 - The installer protects your OSS CAD Suite installation from corruption
 - Need Quartus? The Docker version saves you from a 20GB+ installation hassle
+- For WSL2 users: `make quartus-prog` automatically offers USB setup when needed
+
+## FPGA Programming
+
+### Open-Source Flow (iCE40/ECP5)
+
+```bash
+# Complete FPGA flow
+make ice40         # Synthesis → P&R → Timing → Bitstream → Program
+
+# Or step by step
+make synth-ice40   # Synthesize
+make pnr-ice40     # Place & Route
+make timing-ice40  # Timing analysis
+make bitstream-ice40  # Generate bitstream
+make prog-ice40    # Program device
+```
+
+### Quartus Flow (Intel/Altera)
+
+#### SRAM Programming (Temporary - for testing)
+Configuration is volatile and lost on power cycle. Perfect for testing designs.
+
+```bash
+# Auto-detects .sof file and programs FPGA
+make quartus-prog
+
+# Complete build and program
+make quartus-all && make quartus-prog
+```
+
+#### Flash Programming (Permanent - for deployment)
+Configuration persists after power cycles. Perfect for deployment.
+
+```bash
+# Auto-detects .pof file and programs CFM
+make quartus-prog FLASH=1
+
+# Complete build and flash programming
+make quartus-all && make quartus-prog FLASH=1
+```
+
+**MAX10 Flash Programming:**
+- Uses native CFM (Configuration Flash Memory) via JTAG
+- No spiOverJtag bridge needed (requires openFPGALoader v1.0.0+)
+- Automatically programs UFM0, UFM1, CFM0, CFM1, CFM2 sections
+
+#### Device Detection
+
+```bash
+# Detect connected FPGA
+make quartus-detect
+
+# Expected output:
+# manufacturer: altera
+# family: MAX 10
+# model: 10M08SAU169C8GES
+```
+
+### USB Setup for FPGA Programming (WSL2)
+
+If you're using WSL2, FPGA programming requires USB passthrough. The toolkit makes this easy:
+
+#### Automatic Setup (Recommended)
+
+```bash
+# Just run this - it will offer USB setup if needed
+make quartus-prog
+
+# Or run the setup script directly
+./setup-usb-fpga.sh
+```
+
+When `make quartus-prog` doesn't detect an FPGA, it automatically:
+1. Detects WSL2 environment
+2. Finds the `setup-usb-fpga.sh` script
+3. Prompts you to run USB setup
+4. Re-checks device after setup
+5. Proceeds with programming if detected
+
+#### Manual Setup (Advanced)
+
+**1. Install usbipd-win (Windows PowerShell as Administrator):**
+```powershell
+winget install --interactive --exact dorssel.usbipd-win
+```
+
+**2. List USB devices (Windows PowerShell):**
+```powershell
+usbipd list
+```
+
+**3. Bind your FPGA device (one-time, Windows PowerShell as Administrator):**
+```powershell
+# Using Hardware ID (recommended - more portable)
+usbipd bind --hardware-id 0403:6010
+
+# OR using BUSID (changes when you plug into different port)
+usbipd bind --busid 2-1
+```
+
+**4. Attach to WSL2 (Windows PowerShell as Administrator):**
+```powershell
+# Using Hardware ID (recommended)
+usbipd attach --wsl --hardware-id 0403:6010
+
+# OR using BUSID
+usbipd attach --wsl --busid 2-1
+
+# Optional: Auto-attach whenever device is plugged in
+usbipd attach --wsl --auto-attach --busid 2-1
+```
+
+**5. Verify in WSL2:**
+```bash
+lsusb | grep -i "blaster\|ftdi\|altera"
+make quartus-detect
+```
+
+**Common Hardware IDs:**
+| Device | Hardware ID | VID:PID |
+|--------|-------------|---------|
+| USB-Blaster (FTDI) | `0403:6010` | Future Technology Devices |
+| USB-Blaster II | `09fb:6010` | Altera |
+| USB-Blaster II (alt) | `09fb:6810` | Altera |
+
+**Detach Device (Windows PowerShell):**
+```powershell
+usbipd detach --busid 2-1
+```
 
 ## Examples & Tutorials
 
@@ -243,21 +409,225 @@ LED_logic #(.time_count(50000000), .toggle_count(25000000))
 
 ### Add Clock Domain Crossing
 ```verilog
-synchronizer #(.WIDTH(8)) sync_inst 
+synchronizer #(.WIDTH(8)) sync_inst
     (.i_clk(clk), .i_rst_n(rst_n), .d_in(async_data), .d_out(sync_data));
 ```
+
+### Complete Quartus Development Example
+
+```bash
+# Create Quartus project with specific board
+./initiate_proj.sh
+# Choose option 2 (Intel Quartus)
+# Select board (TEI0010, DE10-Lite, etc.)
+
+cd my_project
+
+# Edit your RTL
+vim sources/rtl/my_project.v
+
+# Run complete synthesis flow
+make quartus-all
+
+# View reports
+make quartus-reports
+
+# Check timing
+make quartus-sta
+
+# Program FPGA (SRAM - temporary)
+make quartus-prog
+
+# Or program Flash (permanent)
+make quartus-prog FLASH=1
+
+# Open Quartus GUI (requires X11 forwarding)
+make quartus-gui
+```
+
+## Troubleshooting
+
+### No FPGA Device Detected
+
+**For Open-Source Flow:**
+```bash
+# Check if iceprog/openFPGALoader is in PATH
+which iceprog
+which openFPGALoader
+
+# Check USB device
+lsusb | grep -i "lattice\|ftdi"
+
+# Try programming with verbose output
+make prog-ice40 VERBOSE=1
+```
+
+**For Quartus Flow:**
+```bash
+# Let Make help you automatically (WSL2)
+make quartus-prog
+# Answer 'y' when prompted for USB setup
+
+# Or manually check
+lsusb | grep -i "blaster\|ftdi\|altera"
+
+# Run USB setup manually
+./setup-usb-fpga.sh
+
+# Verify detection
+make quartus-detect
+```
+
+**Common Hardware Issues:**
+- FPGA board powered on
+- USB cable connected (data cable, not charge-only)
+- Correct USB port
+- For WSL2: Device attached with usbipd
+
+### Tool Not Found
+
+**Check installation:**
+```bash
+# For OSS projects
+make check-tools
+
+# For Quartus projects
+make check-tools
+docker images | grep quartus
+```
+
+**Add OSS CAD Suite to PATH:**
+```bash
+# Temporary
+export PATH=$HOME/fpga_workspace/oss-cad-suite/bin:$PATH
+
+# Permanent (add to ~/.bashrc)
+echo 'export PATH=$HOME/fpga_workspace/oss-cad-suite/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Synthesis/Fit Errors
+
+**For Open-Source Flow:**
+```bash
+# Check synthesis log
+cat backend/synth.log
+
+# Check timing report
+cat backend/timing.rpt
+```
+
+**For Quartus Flow:**
+```bash
+# View all reports
+make quartus-reports
+
+# Or view specific reports
+cat output_files/*.rpt
+cat output_files/my_project.map.rpt  # Synthesis
+cat output_files/my_project.fit.rpt  # Fitter
+cat output_files/my_project.sta.rpt  # Timing
+```
+
+**Common Issues:**
+- Missing pin assignments → Check constraint files (.pcf, .sdc, .qsf)
+- Timing violations → Run timing analysis and review constraints
+- Resource overflow → Reduce design or use larger FPGA
+- Undefined modules → Check RTL file list is complete
+
+### Simulation Issues
+
+```bash
+# Update file list first
+make update_list
+
+# Run simulation with verbose output
+make sim VERBOSE=1
+
+# Check simulation log
+cat sim/logs/sim.log
+
+# Verify testbench
+make list-modules
+```
+
+### Docker Issues (Quartus)
+
+**Docker not running:**
+```bash
+sudo systemctl start docker
+```
+
+**Permission denied:**
+```bash
+sudo usermod -aG docker $USER
+# Logout and login again
+```
+
+**Image not found:**
+```bash
+docker pull raetro/quartus:21.1
+```
+
+### Programming Fails
+
+**Error: "No device detected"**
+- For WSL2: Run `make quartus-prog` and accept USB setup offer
+- Or manually: `./setup-usb-fpga.sh`
+- Check `lsusb` output
+
+**Error: "Device mismatch"**
+- Verify correct FPGA in constraint files
+- Check programming file matches hardware
+
+**Error: "Verification failed"**
+- Try verbose mode
+- Check cable quality
+- Verify power supply
+
+### Timing Violations
+
+```bash
+# Open-source flow
+make timing-ice40
+
+# Quartus flow
+make quartus-sta
+make quartus-reports REPORT_OPTION=timing
+```
+
+**Common Fixes:**
+- Add timing constraints (.sdc files)
+- Reduce clock frequency
+- Pipeline critical paths
+- Use faster speed grade
+
+### WSL2 Specific Issues
+
+**WSL version too old:**
+```bash
+# The installer checks and offers to update WSL
+./install_fpga_tools.sh
+```
+
+**USB device not visible after attach:**
+- Check in Windows: `usbipd list` (STATE column should show "Attached")
+- Try detaching and re-attaching
+- Verify usbipd-win version is latest
+- Try different USB port
 
 ## Contributing
 
 Want to make this toolkit even better? We'd love your help! 🤝
 
 Some ideas to get started:
-- 🔌 **Add FPGA families** - Extend the Makefile template for more devices
+- 🔌 **Add FPGA families** - Extend Makefiles for more devices
 - 📝 **New examples** - Create cool demo projects others can learn from
 - 🔧 **Tool integration** - Add support for more EDA tools and simulators
 - 📚 **Documentation** - Write tutorials, fix typos, clarify confusing parts
 - 🐛 **Bug fixes** - Found something broken? Fix it and send a PR!
 - ✨ **New features** - Got an idea? Open an issue and let's discuss!
+- 🎯 **Board support** - Add pin constraints and templates for new boards
 
 All contributions welcome - from typo fixes to major features!
 
@@ -267,6 +637,8 @@ This toolkit stands on the shoulders of giants. Huge thanks to:
 
 - **[YosysHQ](https://github.com/YosysHQ)** - For the incredible [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build), Yosys, and NextPNR
 - **[raetro](https://hub.docker.com/u/raetro)** - For the excellent [Quartus Docker images](https://hub.docker.com/r/raetro/quartus) that make Intel FPGA development painless
+- **[trabucayre](https://github.com/trabucayre)** - For [openFPGALoader](https://github.com/trabucayre/openFPGALoader), the universal FPGA programming tool
+- **[dorssel](https://github.com/dorssel)** - For [usbipd-win](https://github.com/dorssel/usbipd-win), making USB passthrough to WSL2 possible
 - **The entire open-source FPGA community** - For making vendor-neutral FPGA development a reality
 - **All contributors** - Everyone who's helped improve this toolkit
 
@@ -279,6 +651,7 @@ MIT License - Use freely for personal and commercial projects. Build something a
 **Ready to start designing?**
 ```bash
 git clone https://github.com/moaz-kh/fpga-design-toolkit.git && cd fpga-design-toolkit && ./install_fpga_tools.sh
+# Then create your first project with: ./initiate_proj.sh
 ```
 
 Got questions? Open an issue! Found this useful? Give it a ⭐

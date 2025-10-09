@@ -1,0 +1,916 @@
+# Makefile for Quartus Intel FPGA Build System
+# Docker-based workflow for Intel/Altera FPGA development
+
+# === PROJECT CONFIGURATION ===
+
+# Project name - auto-detect from .qpf file or override with: make target PROJECT=yourproject
+PROJECT ?= $(basename $(notdir $(wildcard *.qpf)))
+
+# Docker configuration
+DOCKER_IMAGE := raetro/quartus:21.1
+WORKDIR := $(PWD)
+
+# Configuration options (override with: make target OPTION=value)
+VERBOSE ?= 0
+DRY_RUN ?= 0
+CLEAN_OPTION ?= default
+REPORT_OPTION ?= default
+EXPORT_DIR ?=
+
+# Programming options
+FILE ?=
+FLASH ?= 0
+DETECT_ONLY ?= 0
+
+# === TOOL DETECTION ===
+
+# Docker
+DOCKER := $(shell command -v docker 2> /dev/null)
+
+# Programming tool
+OPENFPGALOADER := $(shell command -v openFPGALoader 2> /dev/null)
+
+# === DOCKER RUN COMMAND ===
+
+DOCKER_RUN = docker run --rm \
+	-v "$(WORKDIR):/build" \
+	-w /build \
+	--user $(shell id -u):$(shell id -g) \
+	-e DISPLAY="$(DISPLAY)" \
+	-v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+	-v "$(HOME)/.Xauthority:/home/$(shell whoami)/.Xauthority:rw" \
+	--net=host \
+	$(DOCKER_IMAGE)
+
+# === DEFAULT TARGET ===
+
+.PHONY: help
+help:
+	@echo "==================================================================="
+	@echo "  Quartus Intel FPGA Build System - Makefile Targets"
+	@echo "==================================================================="
+	@echo ""
+	@if [ -n "$(PROJECT)" ]; then \
+		echo "Current Project: $(PROJECT)"; \
+		if [ -f "$(PROJECT).qpf" ]; then \
+			echo "Project File:    $(PROJECT).qpf ✓"; \
+		else \
+			echo "Project File:    $(PROJECT).qpf (not found)"; \
+		fi; \
+		echo ""; \
+	else \
+		echo "No project detected - specify PROJECT=<name>"; \
+		echo ""; \
+	fi
+	@echo "Main Compilation Flow:"
+	@echo "  make quartus-map                   Analysis & Synthesis (1st step)"
+	@echo "  make quartus-fit                   Place & Route (2nd step)"
+	@echo "  make quartus-asm                   Generate programming files (3rd step)"
+	@echo "  make quartus-sta                   Static Timing Analysis"
+	@echo "  make quartus-pow                   Power Analysis"
+	@echo "  make quartus-synth                 Complete flow (quartus_sh)"
+	@echo "  make quartus-all                   Incremental flow (map→fit→asm)"
+	@echo ""
+	@echo "Programming:"
+	@echo "  make quartus-prog                  Program FPGA (auto-detects .sof - SRAM)"
+	@echo "  make quartus-prog FLASH=1          Program Flash (auto-detects .pof - permanent)"
+	@echo "  make quartus-prog FILE=<file>      Program with specific file"
+	@echo "  make quartus-detect                Detect connected FPGA"
+	@echo ""
+	@echo "Utilities:"
+	@echo "  make quartus-clean                 Clean build files"
+	@echo "  make quartus-reports               Display project reports"
+	@echo "  make quartus-gui                   Open Quartus GUI"
+	@echo "  make quartus-shell                 Interactive Docker shell"
+	@echo "  make quartus-cmd CMD='<command>'   Run arbitrary Quartus command"
+	@echo "  make check-tools                   Check tool availability"
+	@echo ""
+	@echo "Runtime Configuration Options:"
+	@echo "  PROJECT=<name>                     Override auto-detected project name"
+	@echo "  FILE=<path>                        Override auto-detected programming file"
+	@echo "  FLASH=1                            Use flash programming (.pof) instead of SRAM (.sof)"
+	@echo "  CMD='<command>'                    Arbitrary Quartus command (for quartus-cmd)"
+	@echo "  VERBOSE=1                          Verbose output"
+	@echo "  DRY_RUN=1                          Dry run mode (show actions)"
+	@echo ""
+	@echo "Advanced Options:"
+	@echo "  CLEAN_OPTION=all|db|output|incremental|simulation|reports|temp"
+	@echo "  REPORT_OPTION=default|timing|power|resource|pins|all"
+	@echo "  EXPORT_DIR=<dir>                   Export reports to directory"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make quartus-all                   # Uses auto-detected project"
+	@echo "  make quartus-prog                  # Program FPGA (SRAM, auto-detect .sof)"
+	@echo "  make quartus-prog FLASH=1          # Program Flash (permanent, auto-detect .pof)"
+	@echo "  make quartus-gui                   # Open Quartus GUI"
+	@echo "  make quartus-cmd CMD='quartus_sh --version'"
+	@echo "  make quartus-all PROJECT=my_design # Override project name"
+	@echo "  make quartus-clean CLEAN_OPTION=all"
+	@echo "  make quartus-reports REPORT_OPTION=all EXPORT_DIR=reports/"
+	@echo ""
+	@echo "Auto-detection Features:"
+	@echo "  • PROJECT: Uses configured project name (or auto-detects from .qpf)"
+	@echo "  • Programming file: Auto-detects output_files/<project>.sof or .pof"
+	@echo "  • Default: SRAM programming (.sof) - use FLASH=1 for permanent (.pof)"
+	@echo ""
+	@echo "Note: When created by create_quartus_proj.sh, PROJECT is pre-configured."
+	@echo "==================================================================="
+
+# === TOOL CHECKING ===
+
+.PHONY: check-tools
+check-tools:
+	@echo "=== Tool Availability Check ==="
+	@echo ""
+	@echo "Docker Tools:"
+ifndef DOCKER
+	@echo "  ERROR: Docker not found - required for Quartus"
+	@echo "         Install: https://docs.docker.com/engine/install/"
+else
+	@echo "  OK: Docker: $(DOCKER)"
+	@if docker images $(DOCKER_IMAGE) --format "{{.Repository}}" 2>/dev/null | grep -q "raetro/quartus"; then \
+		echo "  OK: Quartus Docker image: $(DOCKER_IMAGE)"; \
+	else \
+		echo "  ERROR: Quartus Docker image not found"; \
+		echo "         Pull with: docker pull $(DOCKER_IMAGE)"; \
+	fi
+endif
+	@echo ""
+	@echo "Programming Tools:"
+ifdef OPENFPGALOADER
+	@echo "  OK: openFPGALoader: $(OPENFPGALOADER)"
+else
+	@echo "  ERROR: openFPGALoader not found - required for FPGA programming"
+	@echo "         Install with OSS CAD Suite or build from source"
+	@echo "         Expected in: ~/fpga_workspace/oss-cad-suite/bin/"
+endif
+	@echo ""
+
+# === MAIN FPGA COMPILATION FLOW ===
+
+.PHONY: quartus-map
+quartus-map:
+ifndef DOCKER
+	@echo "ERROR: Docker not available. Install Docker first."
+	@exit 1
+endif
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "ERROR: PROJECT not specified"; \
+		echo "Usage: make quartus-map PROJECT=<project_name>"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(PROJECT).qpf" ]; then \
+		echo "ERROR: Project file $(PROJECT).qpf not found"; \
+		echo "Make sure you're in the project directory"; \
+		exit 1; \
+	fi
+	@if ! docker images $(DOCKER_IMAGE) --format "{{.Repository}}" 2>/dev/null | grep -q "raetro/quartus"; then \
+		echo "ERROR: Quartus Docker image not found"; \
+		echo "Pull with: docker pull $(DOCKER_IMAGE)"; \
+		exit 1; \
+	fi
+	@echo "Running Analysis & Synthesis for $(PROJECT) with Quartus 21.1..."
+	@echo "Tool: quartus_map"
+	@echo ""
+	@$(DOCKER_RUN) quartus_map "$(PROJECT)"; \
+	exit_code=$$?; \
+	if [ $$exit_code -eq 0 ]; then \
+		echo ""; \
+		echo "✅ Analysis & Synthesis completed successfully!"; \
+		echo "Next steps:"; \
+		echo "  make quartus-fit PROJECT=$(PROJECT)     # Place & Route"; \
+		echo "  make quartus-asm PROJECT=$(PROJECT)     # Generate programming files"; \
+		echo "  make quartus-sta PROJECT=$(PROJECT)     # Timing analysis"; \
+	else \
+		echo ""; \
+		echo "❌ Analysis & Synthesis failed with exit code $$exit_code"; \
+		echo "Check the compilation report for details."; \
+		exit $$exit_code; \
+	fi
+
+.PHONY: quartus-fit
+quartus-fit:
+ifndef DOCKER
+	@echo "ERROR: Docker not available. Install Docker first."
+	@exit 1
+endif
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "ERROR: PROJECT not specified"; \
+		echo "Usage: make quartus-fit PROJECT=<project_name>"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(PROJECT).qpf" ]; then \
+		echo "ERROR: Project file $(PROJECT).qpf not found"; \
+		echo "Make sure you're in the project directory"; \
+		exit 1; \
+	fi
+	@if [ ! -d "db" ] || [ ! -f "db/$(PROJECT).map.qmsg" ]; then \
+		echo "WARNING: Analysis & synthesis may not be completed."; \
+		echo "Run 'make quartus-map PROJECT=$(PROJECT)' first if you encounter errors."; \
+		echo ""; \
+	fi
+	@echo "Running Place & Route for $(PROJECT) with Quartus 21.1..."
+	@echo "Tool: quartus_fit"
+	@echo ""
+	@$(DOCKER_RUN) quartus_fit "$(PROJECT)"; \
+	exit_code=$$?; \
+	if [ $$exit_code -eq 0 ]; then \
+		echo ""; \
+		echo "✅ Place & Route completed successfully!"; \
+		echo "Next steps:"; \
+		echo "  make quartus-asm PROJECT=$(PROJECT)     # Generate programming files"; \
+		echo "  make quartus-sta PROJECT=$(PROJECT)     # Timing analysis"; \
+		echo "  make quartus-pow PROJECT=$(PROJECT)     # Power analysis"; \
+	else \
+		echo ""; \
+		echo "❌ Place & Route failed with exit code $$exit_code"; \
+		echo "Check the fitter report for details."; \
+		exit $$exit_code; \
+	fi
+
+.PHONY: quartus-asm
+quartus-asm:
+ifndef DOCKER
+	@echo "ERROR: Docker not available. Install Docker first."
+	@exit 1
+endif
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "ERROR: PROJECT not specified"; \
+		echo "Usage: make quartus-asm PROJECT=<project_name>"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(PROJECT).qpf" ]; then \
+		echo "ERROR: Project file $(PROJECT).qpf not found"; \
+		echo "Make sure you're in the project directory"; \
+		exit 1; \
+	fi
+	@if [ ! -d "db" ] || [ ! -f "db/$(PROJECT).fit.qmsg" ]; then \
+		echo "WARNING: Place & route may not be completed."; \
+		echo "Run 'make quartus-fit PROJECT=$(PROJECT)' first if you encounter errors."; \
+		echo ""; \
+	fi
+	@echo "Generating programming files for $(PROJECT) with Quartus 21.1..."
+	@echo "Tool: quartus_asm"
+	@echo ""
+	@$(DOCKER_RUN) quartus_asm "$(PROJECT)"; \
+	exit_code=$$?; \
+	if [ $$exit_code -eq 0 ]; then \
+		echo ""; \
+		echo "✅ Programming files generated successfully!"; \
+		echo ""; \
+		echo "Generated files in output_files/:"; \
+		[ -f "output_files/$(PROJECT).sof" ] && echo "  📁 $(PROJECT).sof  (SRAM Object File - for Quartus Programmer)"; \
+		[ -f "output_files/$(PROJECT).pof" ] && echo "  📁 $(PROJECT).pof  (Programmer Object File - for Flash)"; \
+		[ -f "output_files/$(PROJECT).rbf" ] && echo "  📁 $(PROJECT).rbf  (Raw Binary File)"; \
+		echo ""; \
+		echo "Next steps:"; \
+		echo "  make quartus-prog FILE=output_files/$(PROJECT).pof    # Program Flash (Recommended)"; \
+		echo "  make quartus-sta PROJECT=$(PROJECT)                   # Timing analysis"; \
+		echo ""; \
+		echo "Note: Use POF file for reliable openFPGALoader programming with MAX10"; \
+	else \
+		echo ""; \
+		echo "❌ Programming file generation failed with exit code $$exit_code"; \
+		echo "Check the assembler report for details."; \
+		exit $$exit_code; \
+	fi
+
+.PHONY: quartus-sta
+quartus-sta:
+ifndef DOCKER
+	@echo "ERROR: Docker not available. Install Docker first."
+	@exit 1
+endif
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "ERROR: PROJECT not specified"; \
+		echo "Usage: make quartus-sta PROJECT=<project_name>"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(PROJECT).qpf" ]; then \
+		echo "ERROR: Project file $(PROJECT).qpf not found"; \
+		exit 1; \
+	fi
+	@if [ ! -d "db" ] || [ ! -f "db/$(PROJECT).fit.qmsg" ]; then \
+		echo "WARNING: Place & route may not be completed."; \
+		echo "Run 'make quartus-fit PROJECT=$(PROJECT)' first if you encounter errors."; \
+		echo ""; \
+	fi
+	@echo "Running Static Timing Analysis for $(PROJECT) with Quartus 21.1..."
+	@echo "Tool: quartus_sta"
+	@echo ""
+	@$(DOCKER_RUN) quartus_sta "$(PROJECT)"; \
+	exit_code=$$?; \
+	if [ $$exit_code -eq 0 ]; then \
+		echo ""; \
+		echo "✅ Static Timing Analysis completed successfully!"; \
+		echo ""; \
+		echo "Timing reports available in output_files/:"; \
+		[ -f "output_files/$(PROJECT).sta.rpt" ] && echo "  📊 $(PROJECT).sta.rpt     (Detailed timing report)"; \
+		[ -f "output_files/$(PROJECT).sta.summary" ] && echo "  📈 $(PROJECT).sta.summary (Timing summary)"; \
+		if [ -f "output_files/$(PROJECT).sta.summary" ]; then \
+			echo ""; \
+			echo "Timing Summary:"; \
+			head -20 "output_files/$(PROJECT).sta.summary"; \
+		fi; \
+		echo ""; \
+		echo "Next steps:"; \
+		echo "  make quartus-pow PROJECT=$(PROJECT)                # Power analysis"; \
+		echo "  make quartus-prog FILE=$(PROJECT).sof              # Program FPGA"; \
+	else \
+		echo ""; \
+		echo "❌ Static Timing Analysis failed with exit code $$exit_code"; \
+		echo "Check the timing analysis report for details."; \
+		exit $$exit_code; \
+	fi
+
+.PHONY: quartus-pow
+quartus-pow:
+ifndef DOCKER
+	@echo "ERROR: Docker not available. Install Docker first."
+	@exit 1
+endif
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "ERROR: PROJECT not specified"; \
+		echo "Usage: make quartus-pow PROJECT=<project_name>"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(PROJECT).qpf" ]; then \
+		echo "ERROR: Project file $(PROJECT).qpf not found"; \
+		exit 1; \
+	fi
+	@if [ ! -d "db" ] || [ ! -f "db/$(PROJECT).fit.qmsg" ]; then \
+		echo "WARNING: Place & route may not be completed."; \
+		echo "Run 'make quartus-fit PROJECT=$(PROJECT)' first if you encounter errors."; \
+		echo ""; \
+	fi
+	@echo "Running Power Analysis for $(PROJECT) with Quartus 21.1..."
+	@echo "Tool: quartus_pow"
+	@echo ""
+	@$(DOCKER_RUN) quartus_pow "$(PROJECT)"; \
+	exit_code=$$?; \
+	if [ $$exit_code -eq 0 ]; then \
+		echo ""; \
+		echo "✅ Power Analysis completed successfully!"; \
+		echo ""; \
+		echo "Power reports available in output_files/:"; \
+		[ -f "output_files/$(PROJECT).pow.rpt" ] && echo "  ⚡ $(PROJECT).pow.rpt     (Detailed power report)"; \
+		[ -f "output_files/$(PROJECT).pow.summary" ] && echo "  📊 $(PROJECT).pow.summary (Power summary)"; \
+		if [ -f "output_files/$(PROJECT).pow.summary" ]; then \
+			echo ""; \
+			echo "Power Summary:"; \
+			cat "output_files/$(PROJECT).pow.summary" 2>/dev/null || echo "  Summary file not found"; \
+		fi; \
+		echo ""; \
+		echo "Next steps:"; \
+		echo "  make quartus-prog FILE=$(PROJECT).sof              # Program FPGA"; \
+		echo "  make quartus-reports PROJECT=$(PROJECT)            # Generate all reports"; \
+	else \
+		echo ""; \
+		echo "❌ Power Analysis failed with exit code $$exit_code"; \
+		echo "Check the power analysis report for details."; \
+		exit $$exit_code; \
+	fi
+
+.PHONY: quartus-synth
+quartus-synth:
+ifndef DOCKER
+	@echo "ERROR: Docker not available. Install Docker first."
+	@exit 1
+endif
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "ERROR: PROJECT not specified"; \
+		echo "Usage: make quartus-synth PROJECT=<project_name>"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(PROJECT).qpf" ]; then \
+		echo "ERROR: Project file $(PROJECT).qpf not found"; \
+		exit 1; \
+	fi
+	@echo "Synthesizing $(PROJECT) with Quartus 21.1..."
+	@$(DOCKER_RUN) quartus_sh --flow compile "$(PROJECT).qpf"
+
+.PHONY: quartus-all
+quartus-all: quartus-map quartus-fit quartus-asm
+
+# === FPGA PROGRAMMING ===
+
+.PHONY: quartus-prog
+quartus-prog:
+ifndef OPENFPGALOADER
+	@echo "ERROR: openFPGALoader not found"
+	@echo ""
+	@echo "openFPGALoader is required for FPGA programming (included in OSS CAD Suite)."
+	@echo "Please ensure OSS CAD Suite is installed and in PATH:"
+	@echo "  export PATH=\$$HOME/fpga_workspace/oss-cad-suite/bin:\$$PATH"
+	@echo ""
+	@echo "Or install OSS CAD Suite: ./install_fpga_tools.sh"
+	@exit 1
+endif
+	@echo "🔍 Checking for connected FPGA device..."; \
+	if $(OPENFPGALOADER) --detect >/dev/null 2>&1; then \
+		echo "✅ FPGA device detected"; \
+		echo ""; \
+	else \
+		echo "⚠  No FPGA device detected"; \
+		echo ""; \
+		if grep -qi microsoft /proc/version 2>/dev/null; then \
+			echo "Detected WSL2 environment - USB passthrough may be needed"; \
+			echo ""; \
+			SETUP_SCRIPT=""; \
+			if [ -f "../setup-usb-fpga.sh" ]; then \
+				SETUP_SCRIPT="../setup-usb-fpga.sh"; \
+			elif [ -f "setup-usb-fpga.sh" ]; then \
+				SETUP_SCRIPT="setup-usb-fpga.sh"; \
+			elif [ -f "$${HOME}/quartus_env/setup-usb-fpga.sh" ]; then \
+				SETUP_SCRIPT="$${HOME}/quartus_env/setup-usb-fpga.sh"; \
+			fi; \
+			if [ -n "$$SETUP_SCRIPT" ]; then \
+				echo "Would you like to run USB setup now?"; \
+				echo "This will help configure USB passthrough for WSL2."; \
+				echo ""; \
+				printf "Run USB setup? [Y/n]: "; \
+				read REPLY; \
+				echo ""; \
+				case "$$REPLY" in \
+					[Nn]*) RUN_SETUP=0 ;; \
+					*) RUN_SETUP=1 ;; \
+				esac; \
+				if [ $$RUN_SETUP -eq 1 ]; then \
+					echo ""; \
+					echo "Running USB setup script..."; \
+					echo ""; \
+					bash "$$SETUP_SCRIPT"; \
+					SETUP_EXIT=$$?; \
+					echo ""; \
+					if [ $$SETUP_EXIT -eq 0 ]; then \
+						echo "🔍 Re-checking for FPGA device..."; \
+						if $(OPENFPGALOADER) --detect >/dev/null 2>&1; then \
+							echo "✅ FPGA device now detected!"; \
+							echo ""; \
+						else \
+							echo "❌ Device still not detected"; \
+							echo ""; \
+							echo "Please complete USB setup and try again."; \
+							echo "Run manually: $$SETUP_SCRIPT"; \
+							exit 1; \
+						fi; \
+					else \
+						echo "Setup script exited. Please configure USB manually."; \
+						exit 1; \
+					fi; \
+				else \
+					echo ""; \
+					echo "Skipping USB setup."; \
+					echo ""; \
+					echo "Manual troubleshooting:"; \
+					echo "  1. Check FPGA board is powered on"; \
+					echo "  2. Check USB cable connection"; \
+					echo "  3. Verify USB in WSL2: lsusb | grep 0403:6010"; \
+					echo "  4. Run USB setup: $$SETUP_SCRIPT"; \
+					exit 1; \
+				fi; \
+			else \
+				echo "Troubleshooting:"; \
+				echo "  1. Check FPGA board is powered on"; \
+				echo "  2. Check USB cable connection"; \
+				echo "  3. Verify USB in WSL2: lsusb"; \
+				echo "  4. Run USB setup script (if available)"; \
+				exit 1; \
+			fi; \
+		else \
+			echo "Troubleshooting:"; \
+			echo "  1. Check FPGA board is powered on"; \
+			echo "  2. Check USB cable connection"; \
+			echo "  3. Check USB permissions: ls -l /dev/bus/usb/*/*"; \
+			echo "  4. Try: make quartus-detect"; \
+			exit 1; \
+		fi; \
+	fi; \
+	\
+	if [ "$(DETECT_ONLY)" = "1" ]; then \
+		echo "Device detection completed successfully."; \
+		exit 0; \
+	fi; \
+	\
+	if [ -z "$(FILE)" ]; then \
+		if [ -z "$(PROJECT)" ]; then \
+			echo "ERROR: No project detected and FILE not specified"; \
+			echo ""; \
+			echo "Solutions:"; \
+			echo "  1. Run in a project directory with a .qpf file"; \
+			echo "  2. Specify: make quartus-prog PROJECT=<name>"; \
+			echo "  3. Specify: make quartus-prog FILE=output_files/file.sof"; \
+			exit 1; \
+		fi; \
+		if [ "$(FLASH)" = "1" ]; then \
+			AUTO_FILE="output_files/$(PROJECT).pof"; \
+			echo "Auto-detecting Flash programming file: $$AUTO_FILE"; \
+		else \
+			AUTO_FILE="output_files/$(PROJECT).sof"; \
+			echo "Auto-detecting SRAM programming file: $$AUTO_FILE"; \
+		fi; \
+		if [ ! -f "$$AUTO_FILE" ]; then \
+			echo "ERROR: Programming file not found: $$AUTO_FILE"; \
+			echo ""; \
+			echo "Did you run synthesis first?"; \
+			echo "  make quartus-all"; \
+			exit 1; \
+		fi; \
+		PROG_FILE="$$AUTO_FILE"; \
+	else \
+		PROG_FILE="$(FILE)"; \
+		if [ ! -f "$$PROG_FILE" ]; then \
+			if [ -f "output_files/$$PROG_FILE" ]; then \
+				PROG_FILE="output_files/$$PROG_FILE"; \
+			else \
+				echo "ERROR: Programming file not found: $$PROG_FILE"; \
+				exit 1; \
+			fi; \
+		fi; \
+	fi; \
+	\
+	PROG_FILE=$$(readlink -f "$$PROG_FILE"); \
+	FILE_EXT="$${PROG_FILE##*.}"; \
+	WORKDIR_PROG=$$(dirname "$$PROG_FILE"); \
+	FILENAME=$$(basename "$$PROG_FILE"); \
+	BASENAME="$${FILENAME%.*}"; \
+	\
+	echo "FPGA Programming"; \
+	echo "File: $$PROG_FILE"; \
+	echo ""; \
+	\
+	case "$$FILE_EXT" in \
+		sof) \
+			echo "Converting .sof to .svf format..."; \
+			if [ -z "$(DOCKER)" ]; then \
+				echo "ERROR: Docker not found - required for .sof conversion"; \
+				exit 1; \
+			fi; \
+			if ! docker images $(DOCKER_IMAGE) --format "{{.Repository}}" 2>/dev/null | grep -q "raetro/quartus"; then \
+				echo "ERROR: Quartus Docker image not found"; \
+				echo "Pull with: docker pull $(DOCKER_IMAGE)"; \
+				exit 1; \
+			fi; \
+			SVF_FILE="$$WORKDIR_PROG/$$BASENAME.svf"; \
+			docker run --rm -v "$$WORKDIR_PROG:/build" -w /build $(DOCKER_IMAGE) \
+				quartus_cpf -c -q 6MHz -g 3.3 -n p "$$FILENAME" "$$BASENAME.svf" > /dev/null 2>&1; \
+			if [ $$? -ne 0 ] || [ ! -f "$$SVF_FILE" ]; then \
+				echo "ERROR: Failed to convert .sof to .svf"; \
+				exit 1; \
+			fi; \
+			echo "✓ Conversion successful: $$BASENAME.svf"; \
+			echo ""; \
+			echo "Programming SRAM (configuration lost on power cycle)..."; \
+			if [ "$(VERBOSE)" = "1" ]; then \
+				$(OPENFPGALOADER) -v "$$SVF_FILE"; \
+			else \
+				$(OPENFPGALOADER) "$$SVF_FILE"; \
+			fi; \
+			exit_code=$$?; \
+			;; \
+		pof) \
+			echo "Programming Flash (permanent configuration)..."; \
+			if [ "$(VERBOSE)" = "1" ]; then \
+				$(OPENFPGALOADER) -v -f "$$PROG_FILE"; \
+			else \
+				$(OPENFPGALOADER) -f "$$PROG_FILE"; \
+			fi; \
+			exit_code=$$?; \
+			;; \
+		svf) \
+			echo "Programming with SVF file..."; \
+			if [ "$(VERBOSE)" = "1" ]; then \
+				$(OPENFPGALOADER) -v "$$PROG_FILE"; \
+			else \
+				$(OPENFPGALOADER) "$$PROG_FILE"; \
+			fi; \
+			exit_code=$$?; \
+			;; \
+		*) \
+			echo "ERROR: Unsupported file format: $$FILE_EXT"; \
+			echo "Supported formats: .sof, .pof, .svf"; \
+			exit 1; \
+			;; \
+	esac; \
+	\
+	echo ""; \
+	if [ $$exit_code -eq 0 ]; then \
+		echo "✅ FPGA programming completed successfully!"; \
+		if [ "$$FILE_EXT" = "sof" ] || [ "$$FILE_EXT" = "svf" ]; then \
+			echo ""; \
+			echo "Note: SRAM programming is temporary - configuration will be lost on power cycle."; \
+			echo "For permanent programming, use: make quartus-prog FLASH=1"; \
+		else \
+			echo ""; \
+			echo "Flash programming successful - configuration will persist after power cycle."; \
+		fi; \
+	else \
+		echo "❌ FPGA programming failed"; \
+		echo ""; \
+		echo "Troubleshooting:"; \
+		echo "  1. Check USB connection: lsusb | grep 0403:6010"; \
+		echo "  2. Detect device: make quartus-detect"; \
+		echo "  3. Verify FPGA is powered on"; \
+		echo "  4. Check setup-usb-fpga.sh for USB passthrough setup"; \
+		exit $$exit_code; \
+	fi
+
+.PHONY: quartus-detect
+quartus-detect:
+	@$(MAKE) quartus-prog DETECT_ONLY=1
+
+# === UTILITY TARGETS ===
+
+.PHONY: quartus-clean
+quartus-clean:
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "ERROR: PROJECT not specified"; \
+		echo "Usage: make quartus-clean PROJECT=<project_name>"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(PROJECT).qpf" ]; then \
+		echo "ERROR: Project file $(PROJECT).qpf not found"; \
+		echo "Make sure you're in the project directory and the project name is correct."; \
+		exit 1; \
+	fi
+	@echo "Quartus Project Cleanup Tool"
+	@echo "Project: $(PROJECT)"
+	@echo ""
+	@if [ "$(DRY_RUN)" = "1" ]; then \
+		echo "🔍 DRY RUN MODE - No files will be deleted"; \
+		echo ""; \
+	fi
+	@clean_db=1; clean_output=1; clean_incremental=0; clean_simulation=0; clean_reports=0; clean_temp=0; \
+	if [ "$(CLEAN_OPTION)" = "all" ]; then \
+		clean_db=1; clean_output=1; clean_incremental=1; clean_simulation=1; clean_reports=1; clean_temp=1; \
+	elif [ "$(CLEAN_OPTION)" = "db" ]; then \
+		clean_db=1; clean_output=0; \
+	elif [ "$(CLEAN_OPTION)" = "output" ]; then \
+		clean_db=0; clean_output=1; \
+	elif [ "$(CLEAN_OPTION)" = "incremental" ]; then \
+		clean_db=0; clean_output=0; clean_incremental=1; \
+	elif [ "$(CLEAN_OPTION)" = "simulation" ]; then \
+		clean_db=0; clean_output=0; clean_simulation=1; \
+	elif [ "$(CLEAN_OPTION)" = "reports" ]; then \
+		clean_db=0; clean_output=0; clean_reports=1; \
+	elif [ "$(CLEAN_OPTION)" = "temp" ]; then \
+		clean_db=0; clean_output=0; clean_temp=1; \
+	fi; \
+	if [ $$clean_db -eq 1 ]; then \
+		echo "🗃️  Cleaning compilation database..."; \
+		if [ -d "db" ]; then \
+			if [ "$(VERBOSE)" = "1" ] || [ "$(DRY_RUN)" = "1" ]; then \
+				echo "  📁 db/ (Compilation database)"; \
+				[ "$(VERBOSE)" = "1" ] && du -sh db 2>/dev/null | cut -f1 | xargs echo "     Size:"; \
+			fi; \
+			if [ "$(DRY_RUN)" != "1" ]; then \
+				rm -rf db; \
+				echo "  ✅ Removed db/"; \
+			fi; \
+		fi; \
+	fi; \
+	if [ $$clean_output -eq 1 ]; then \
+		echo "📤 Cleaning output files..."; \
+		if [ -d "output_files" ]; then \
+			if [ "$(VERBOSE)" = "1" ] || [ "$(DRY_RUN)" = "1" ]; then \
+				echo "  📁 output_files/ (Programming files and reports)"; \
+				[ "$(VERBOSE)" = "1" ] && du -sh output_files 2>/dev/null | cut -f1 | xargs echo "     Size:"; \
+			fi; \
+			if [ "$(DRY_RUN)" != "1" ]; then \
+				rm -rf output_files; \
+				echo "  ✅ Removed output_files/"; \
+			fi; \
+		fi; \
+	fi; \
+	if [ $$clean_incremental -eq 1 ]; then \
+		echo "🔄 Cleaning incremental database..."; \
+		if [ -d "incremental_db" ]; then \
+			if [ "$(DRY_RUN)" != "1" ]; then rm -rf incremental_db; echo "  ✅ Removed incremental_db/"; fi; \
+		fi; \
+	fi; \
+	if [ $$clean_simulation -eq 1 ]; then \
+		echo "🎯 Cleaning simulation files..."; \
+		if [ -d "simulation" ]; then \
+			if [ "$(DRY_RUN)" != "1" ]; then rm -rf simulation; echo "  ✅ Removed simulation/"; fi; \
+		fi; \
+	fi; \
+	if [ $$clean_reports -eq 1 ]; then \
+		echo "📊 Cleaning report files..."; \
+		if [ "$(DRY_RUN)" != "1" ]; then \
+			find . -maxdepth 1 -name "*.rpt" -delete 2>/dev/null; \
+			find . -maxdepth 1 -name "*.summary" -delete 2>/dev/null; \
+			find . -maxdepth 1 -name "*.smsg" -delete 2>/dev/null; \
+			echo "  ✅ Removed report files"; \
+		fi; \
+	fi; \
+	if [ $$clean_temp -eq 1 ]; then \
+		echo "🧹 Cleaning temporary files..."; \
+		if [ "$(DRY_RUN)" != "1" ]; then \
+			find . -maxdepth 1 -name "*.qws" -delete 2>/dev/null; \
+			find . -maxdepth 1 -name "*.tmp" -delete 2>/dev/null; \
+			find . -maxdepth 1 -name "*~" -delete 2>/dev/null; \
+			find . -maxdepth 1 -name "*.bak" -delete 2>/dev/null; \
+			find . -maxdepth 1 -name "*.orig" -delete 2>/dev/null; \
+			echo "  ✅ Removed temporary files"; \
+		fi; \
+	fi; \
+	echo ""; \
+	if [ "$(DRY_RUN)" = "1" ]; then \
+		echo "🔍 Dry run completed. Use without DRY_RUN=1 to actually remove files."; \
+	else \
+		echo "✅ Project cleanup completed!"; \
+		echo ""; \
+		echo "Next steps:"; \
+		echo "  make quartus-map PROJECT=$(PROJECT)      # Start fresh compilation"; \
+		echo "  make quartus-synth PROJECT=$(PROJECT)    # Run complete synthesis flow"; \
+	fi
+
+.PHONY: quartus-reports
+quartus-reports:
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "ERROR: PROJECT not specified"; \
+		echo "Usage: make quartus-reports PROJECT=<project_name>"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(PROJECT).qpf" ]; then \
+		echo "ERROR: Project file $(PROJECT).qpf not found"; \
+		echo "Make sure you're in the project directory and the project name is correct."; \
+		exit 1; \
+	fi
+	@if [ ! -d "output_files" ]; then \
+		echo "ERROR: No output files found. Run compilation first:"; \
+		echo "  make quartus-synth PROJECT=$(PROJECT)    # Complete synthesis flow"; \
+		echo "  make quartus-map PROJECT=$(PROJECT)      # Analysis & synthesis only"; \
+		exit 1; \
+	fi
+	@echo "📊 Quartus Project Reports"
+	@echo "Project: $(PROJECT)"
+	@echo "================================================"
+	@if [ -n "$(EXPORT_DIR)" ]; then \
+		mkdir -p "$(EXPORT_DIR)"; \
+		echo "📁 Exporting reports to: $(EXPORT_DIR)"; \
+		echo ""; \
+	fi
+	@show_timing=1; show_power=1; show_resource=1; show_pins=0; show_all=0; \
+	if [ "$(REPORT_OPTION)" = "timing" ]; then show_timing=1; show_power=0; show_resource=0; \
+	elif [ "$(REPORT_OPTION)" = "power" ]; then show_timing=0; show_power=1; show_resource=0; \
+	elif [ "$(REPORT_OPTION)" = "resource" ]; then show_timing=0; show_power=0; show_resource=1; \
+	elif [ "$(REPORT_OPTION)" = "pins" ]; then show_timing=0; show_power=0; show_resource=0; show_pins=1; \
+	elif [ "$(REPORT_OPTION)" = "all" ]; then show_timing=1; show_power=1; show_resource=1; show_pins=1; show_all=1; \
+	fi; \
+	if [ $$show_resource -eq 1 ]; then \
+		echo "🔧 Resource Utilization"; \
+		echo "─────────────────────────────────────────────────"; \
+		[ -f "output_files/$(PROJECT).fit.summary" ] && echo "  ✅ Fitter Summary" || echo "  ❌ Fitter Summary (not found)"; \
+		if [ -f "output_files/$(PROJECT).fit.summary" ]; then \
+			echo ""; \
+			echo "📋 Resource Summary"; \
+			echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+			head -20 "output_files/$(PROJECT).fit.summary"; \
+			echo ""; \
+			[ -n "$(EXPORT_DIR)" ] && cp "output_files/$(PROJECT).fit.summary" "$(EXPORT_DIR)/"; \
+		fi; \
+	fi; \
+	if [ $$show_timing -eq 1 ]; then \
+		echo "⏱️  Timing Analysis"; \
+		echo "─────────────────────────────────────────────────"; \
+		[ -f "output_files/$(PROJECT).sta.summary" ] && echo "  ✅ Timing Summary" || echo "  ❌ Timing Summary (not found)"; \
+		[ -f "output_files/$(PROJECT).sta.rpt" ] && echo "  ✅ Detailed Timing Report" || echo "  ❌ Detailed Timing Report (not found)"; \
+		if [ -f "output_files/$(PROJECT).sta.summary" ]; then \
+			echo ""; \
+			echo "📋 Timing Summary"; \
+			echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+			cat "output_files/$(PROJECT).sta.summary"; \
+			echo ""; \
+			[ -n "$(EXPORT_DIR)" ] && cp "output_files/$(PROJECT).sta.summary" "$(EXPORT_DIR)/"; \
+		fi; \
+	fi; \
+	if [ $$show_power -eq 1 ]; then \
+		echo "⚡ Power Analysis"; \
+		echo "─────────────────────────────────────────────────"; \
+		[ -f "output_files/$(PROJECT).pow.summary" ] && echo "  ✅ Power Summary" || echo "  ❌ Power Summary (not found)"; \
+		[ -f "output_files/$(PROJECT).pow.rpt" ] && echo "  ✅ Detailed Power Report" || echo "  ❌ Detailed Power Report (not found)"; \
+		if [ -f "output_files/$(PROJECT).pow.summary" ]; then \
+			echo ""; \
+			echo "📋 Power Summary"; \
+			echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+			cat "output_files/$(PROJECT).pow.summary" 2>/dev/null || echo "  Summary file not found"; \
+			echo ""; \
+			[ -n "$(EXPORT_DIR)" ] && cp "output_files/$(PROJECT).pow.summary" "$(EXPORT_DIR)/"; \
+		fi; \
+	fi; \
+	if [ $$show_pins -eq 1 ]; then \
+		echo "📍 Pin Assignments"; \
+		echo "─────────────────────────────────────────────────"; \
+		[ -f "output_files/$(PROJECT).pin" ] && echo "  ✅ Pin Assignment Report" || echo "  ❌ Pin Assignment Report (not found)"; \
+		if [ -f "output_files/$(PROJECT).pin" ] && [ "$(VERBOSE)" = "1" ]; then \
+			echo ""; \
+			echo "📋 Pin Assignments (I/O pins only)"; \
+			echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+			grep -E ": (input|output|bidir)" "output_files/$(PROJECT).pin" | head -20; \
+			echo ""; \
+		fi; \
+	fi; \
+	if [ $$show_all -eq 1 ]; then \
+		echo "🔄 Compilation Flow"; \
+		echo "─────────────────────────────────────────────────"; \
+		[ -f "output_files/$(PROJECT).flow.rpt" ] && echo "  ✅ Compilation Flow Report"; \
+		[ -f "output_files/$(PROJECT).map.summary" ] && echo "  ✅ Analysis & Synthesis Summary"; \
+		[ -f "output_files/$(PROJECT).asm.rpt" ] && echo "  ✅ Assembler Report"; \
+	fi; \
+	echo "📁 Programming Files"; \
+	echo "─────────────────────────────────────────────────"; \
+	[ -f "output_files/$(PROJECT).sof" ] && echo "  ✅ SRAM Object File" || echo "  ❌ SRAM Object File (not found)"; \
+	[ -f "output_files/$(PROJECT).pof" ] && echo "  ✅ Programmer Object File" || echo "  ❌ Programmer Object File (not found)"; \
+	[ -f "output_files/$(PROJECT).rbf" ] && echo "  ✅ Raw Binary File" || echo "  ❌ Raw Binary File (not found)"; \
+	echo ""; \
+	echo "================================================"; \
+	if [ -n "$(EXPORT_DIR)" ]; then \
+		echo "✅ Reports exported to: $(EXPORT_DIR)"; \
+		echo ""; \
+	fi; \
+	echo "💡 Tip: Use 'make quartus-prog FILE=$(PROJECT).sof' to program your FPGA"; \
+	echo ""; \
+	echo "📈 Report Files Summary:"; \
+	total_reports=$$(find output_files/ -name "*.rpt" -o -name "*.summary" 2>/dev/null | wc -l); \
+	echo "  Total reports: $$total_reports"; \
+	if [ $$total_reports -gt 0 ]; then \
+		echo "  Report files:"; \
+		find output_files/ -name "*.rpt" -o -name "*.summary" 2>/dev/null | sed 's/^/    /'; \
+	fi
+
+.PHONY: quartus-shell
+quartus-shell:
+ifndef DOCKER
+	@echo "ERROR: Docker not available. Install Docker first."
+	@exit 1
+endif
+	@if ! docker images $(DOCKER_IMAGE) --format "{{.Repository}}" 2>/dev/null | grep -q "raetro/quartus"; then \
+		echo "ERROR: Quartus Docker image not found"; \
+		echo "Pull with: docker pull $(DOCKER_IMAGE)"; \
+		exit 1; \
+	fi
+	@echo "Starting Quartus 21.1 interactive shell..."
+	@echo "Your current directory is mounted at /build"
+	@echo "Type 'exit' to leave the container"
+	@$(DOCKER_RUN) bash
+
+.PHONY: quartus-gui
+quartus-gui:
+ifndef DOCKER
+	@echo "ERROR: Docker not available. Install Docker first."
+	@exit 1
+endif
+	@if [ -z "$(PROJECT)" ]; then \
+		echo "ERROR: No project detected"; \
+		echo ""; \
+		echo "Solutions:"; \
+		echo "  1. Run in a project directory with a .qpf file"; \
+		echo "  2. Specify: make quartus-gui PROJECT=<name>"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(PROJECT).qpf" ]; then \
+		echo "ERROR: Project file $(PROJECT).qpf not found"; \
+		exit 1; \
+	fi
+	@if ! docker images $(DOCKER_IMAGE) --format "{{.Repository}}" 2>/dev/null | grep -q "raetro/quartus"; then \
+		echo "ERROR: Quartus Docker image not found"; \
+		echo "Pull with: docker pull $(DOCKER_IMAGE)"; \
+		exit 1; \
+	fi
+	@echo "Opening Quartus GUI for project: $(PROJECT)"
+	@echo "Note: X11 forwarding must be configured for GUI display"
+	@$(DOCKER_RUN) quartus $(PROJECT).qpf &
+
+.PHONY: quartus-cmd
+quartus-cmd:
+ifndef DOCKER
+	@echo "ERROR: Docker not available. Install Docker first."
+	@exit 1
+endif
+	@if [ -z "$(CMD)" ]; then \
+		echo "ERROR: No command specified"; \
+		echo ""; \
+		echo "Usage: make quartus-cmd CMD='<command>'"; \
+		echo ""; \
+		echo "Examples:"; \
+		echo "  make quartus-cmd CMD='quartus_sh --version'"; \
+		echo "  make quartus-cmd CMD='quartus_sh -t script.tcl'"; \
+		echo "  make quartus-cmd CMD='quartus_map --help'"; \
+		exit 1; \
+	fi
+	@if ! docker images $(DOCKER_IMAGE) --format "{{.Repository}}" 2>/dev/null | grep -q "raetro/quartus"; then \
+		echo "ERROR: Quartus Docker image not found"; \
+		echo "Pull with: docker pull $(DOCKER_IMAGE)"; \
+		exit 1; \
+	fi
+	@echo "Running Quartus command: $(CMD)"
+	@$(DOCKER_RUN) $(CMD)
+
+# === PHONY DECLARATIONS ===
+
+.PHONY: help check-tools
+.PHONY: quartus-map quartus-fit quartus-asm quartus-sta quartus-pow
+.PHONY: quartus-synth quartus-all
+.PHONY: quartus-prog quartus-detect
+.PHONY: quartus-clean quartus-reports quartus-shell quartus-gui quartus-cmd

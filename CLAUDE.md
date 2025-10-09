@@ -19,11 +19,11 @@ This is an FPGA Design Toolkit that provides a complete open-source FPGA develop
 # Remove all installed tools (complete cleanup)
 ./install_fpga_tools.sh --cleanup
 
-# Create a new FPGA project
-./initiate_fpga_proj.sh
+# Create a new FPGA project (interactive wrapper)
+./initiate_proj.sh
 ```
 
-Note: The main script is `initiate_fpga_proj.sh` not `initiate_proj.sh` as mentioned in the README.
+Note: `initiate_proj.sh` is the main entry point - it presents an interactive menu to choose between open-source (OSS) or Intel Quartus toolchains.
 
 ### Advanced Installation Features
 The installation script now includes comprehensive management capabilities:
@@ -49,15 +49,31 @@ The installation script now includes comprehensive management capabilities:
 - Cleans up apt packages, Python packages, and symlinks
 
 ### Generated Project Structure
-When a new project is created, it follows this structure:
+
+**Open-Source Projects:**
 ```
 your_project/
 ├── sources/rtl/        # Verilog RTL files + standard modules
 ├── sources/tb/         # Testbenches
-├── sources/constraints/# Pin/timing constraints (.pcf, .lpf, .xdc)
+├── sources/include/    # Include files and headers
+├── sources/constraints/# Pin/timing constraints (.pcf, .xdc)
 ├── sim/               # Simulation outputs & waveforms
 ├── backend/           # Synthesis, place & route, bitstreams
-└── Makefile           # Complete build system
+├── Makefile           # Build system (from Makefile.oss)
+└── README.md          # Project documentation
+```
+
+**Quartus Projects:**
+```
+your_project/
+├── sources/rtl/        # Verilog RTL files
+├── sources/constraints/# Timing constraints (.sdc)
+├── sim/               # Simulation outputs & waveforms
+├── output_files/      # Quartus outputs (.sof, .pof)
+├── db/                # Quartus database
+├── Makefile           # Build system (from Makefile.quartus)
+├── *.qpf              # Quartus project file
+└── *.qsf              # Quartus settings file (pin assignments)
 ```
 
 ## Development Commands
@@ -83,6 +99,8 @@ make sim-waves
 ```
 
 ### FPGA Development Workflow
+
+**Open-Source Flow (iCE40/ECP5):**
 ```bash
 # Complete FPGA flow for current family (default: ice40)
 make all                # synth -> pnr -> timing -> bitstream
@@ -101,6 +119,28 @@ make timing-ice40      # iCE40 timing analysis
 make bitstream-ice40   # Generate iCE40 bitstream
 make prog-ice40        # Program iCE40 device
 make ice40             # Complete iCE40 flow
+```
+
+**Quartus Flow (Intel/Altera):**
+```bash
+# Complete synthesis flow
+make quartus-all       # map -> fit -> asm
+
+# Individual steps
+make quartus-map       # Analysis & Synthesis
+make quartus-fit       # Place & Route
+make quartus-sta       # Static Timing Analysis
+make quartus-asm       # Generate bitstreams
+
+# Programming
+make quartus-prog              # Program FPGA SRAM (temporary)
+make quartus-prog FLASH=1      # Program Flash (permanent)
+make quartus-detect            # Detect connected FPGA
+
+# Utilities
+make quartus-gui       # Open Quartus GUI
+make quartus-reports   # View all reports
+make quartus-clean     # Clean build files
 ```
 
 ### Utility Commands
@@ -159,39 +199,83 @@ make list-modules RTL_DIR=custom_rtl TB_DIR=custom_tb
 
 ### Core Components
 
-1. **Makefile.template** - Template for generated project Makefiles with:
-   - Family-based FPGA architecture (extensible for iCE40, ECP5, Intel, Xilinx)
+1. **initiate_proj.sh** - Main entry point wrapper script:
+   - Interactive menu to choose toolchain (OSS or Quartus)
+   - Calls appropriate project creation script based on user choice
+   - Unified user experience for both toolchains
+
+2. **create_oss_project.sh** - Open-source project creation script:
+   - Creates complete directory structure for OSS flow
+   - Copies standard modules (STD_MODULES.v) to each project
+   - Generates example 8-bit adder with comprehensive testbench
+   - Sets up constraint files for iCE40
+   - Uses Makefile.oss template
+
+3. **create_quartus_project.sh** - Quartus project creation script:
+   - Creates Quartus-specific directory structure
+   - Supports multiple boards (TEI0010, DE10-Lite, Cyclone IV)
+   - Generates .qpf, .qsf with pin assignments and timing constraints
+   - Creates customized Makefile from Makefile.quartus template
+   - RTL template with board-specific LED blinker example
+
+4. **Makefile.oss** - OSS toolchain Makefile template:
+   - Family-based FPGA architecture (iCE40, ECP5)
    - Auto-detection of available EDA tools
    - Complete simulation to bitstream workflow
    - Runtime parameter override system (conditional assignment with `?=`)
    - Module discovery (`list-modules` target)
-   - Project status monitoring and comprehensive error handling
 
-2. **STD_MODULES.v** - Standard Verilog modules library:
+5. **Makefile.quartus** - Quartus toolchain Makefile template:
+   - Docker-based Quartus Prime Lite workflow
+   - Auto-detection of project and programming files
+   - Automatic USB setup prompts for WSL2
+   - SRAM and Flash programming support
+   - GUI support and comprehensive reporting
+
+6. **setup-usb-fpga.sh** - WSL2 USB passthrough automation:
+   - Interactive USB device detection and binding
+   - Automatic usbipd-win setup verification
+   - Hardware ID-based device attachment
+   - FPGA detection verification
+
+7. **STD_MODULES.v** - Standard Verilog modules library:
    - `synchronizer` - Clock domain crossing with parameterizable width
    - `edge_detector` - Rising/falling edge detection with optional sync
    - `LED_logic` - Configurable LED blinking controller
    - `spi_interface_debounce` - SPI signal debouncing
 
-3. **initiate_fpga_proj.sh** - Project creation script that:
-   - Creates complete directory structure
-   - Copies standard modules to each project
-   - Generates example 8-bit adder with comprehensive testbench
-   - Sets up constraint files for iCE40
-
-4. **install_fpga_tools.sh** - Advanced tool installation and management script for:
+8. **install_fpga_tools.sh** - Advanced tool installation and management:
+   - Interactive mode selection (OSS, Docker, Quartus, or All)
    - WSL version checking and updating (automatic detection and safe updates)
    - OSS CAD Suite (Yosys, NextPNR, icestorm tools) with write protection
    - Icarus Verilog and GTKWave
+   - Docker engine installation
+   - Quartus Prime Lite in Docker (raetro/quartus:21.1)
    - Python packages (CocoTB, Amaranth, FuseSoC)
    - Complete cleanup and reinstall functionality (`--cleanup`, `--reinstall`)
-   - Installation verification and fallback options
-   - Comprehensive error handling and user guidance 
+   - Installation verification and fallback options 
 
 ### FPGA Family Support
 
-- **Primary**: iCE40 (full synthesis, P&R, timing, programming support)
-- **Framework ready**: ECP5, Intel, Xilinx (Makefile structure prepared for extension)
+**Open-Source Toolchain:**
+- **iCE40** - Full synthesis, P&R, timing, programming support (Lattice)
+- **ECP5** - Framework ready (Lattice)
+
+**Quartus Toolchain:**
+- **Intel MAX 10** - Full support (TEI0010, DE10-Lite boards)
+- **Cyclone IV E** - Full support (generic template)
+- **Other Intel/Altera** - Framework ready for extension
+
+### Supported Development Boards
+
+**Open-Source:**
+- Generic iCE40 boards (UP5K, HX8K, etc.)
+- Generic ECP5 boards
+
+**Quartus:**
+- **TEI0010** - Intel MAX 10 (10M08SAU169C8GES) - Default
+- **DE10-Lite** - Intel MAX 10 (10M50DAF484C7G)
+- **Cyclone IV E** - Generic EP4CE22F17C6
 
 ### Default Configuration
 

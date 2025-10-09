@@ -10,10 +10,10 @@ echo "Digital Design Project Initialization"
 echo "================================================"
 echo "Welcome to the enhanced FPGA project setup wizard!"
 
-# Check if Makefile.template exists
-if [[ ! -f "Makefile.template" ]]; then
-    echo "ERROR: Makefile.template not found in current directory!"
-    echo "Please ensure Makefile.template is in the same directory as this script."
+# Check if Makefile.oss exists
+if [[ ! -f "Makefile.oss" ]]; then
+    echo "ERROR: Makefile.oss not found in current directory!"
+    echo "Please ensure Makefile.oss is in the same directory as this script."
     exit 1
 fi
 
@@ -115,25 +115,6 @@ echo "  -> backend/bitstream (Final bitstreams)"
 mkdir -p "$PROJECT_NAME/backend/reports"
 echo "  -> backend/reports (Timing and utilization reports)"
 
-# Create documentation and tool directories
-echo "Creating documentation and tool directories..."
-mkdir -p "$PROJECT_NAME/docs"
-echo "  -> docs (Project documentation)"
-
-mkdir -p "$PROJECT_NAME/scripts"
-echo "  -> scripts (Build and automation scripts)"
-
-mkdir -p "$PROJECT_NAME/tests"
-echo "  -> tests (Test vectors and verification)"
-
-# Create vendor and IP directories
-echo "Creating vendor and IP directories..."
-mkdir -p "$PROJECT_NAME/vendor"
-echo "  -> vendor (Third-party IP cores)"
-
-mkdir -p "$PROJECT_NAME/ip"
-echo "  -> ip (Custom IP cores)"
-
 # Create .gitkeep files to preserve directory structure in Git
 echo "Creating .gitkeep files to preserve directory structure..."
 touch "$PROJECT_NAME/sources/include/.gitkeep"
@@ -144,11 +125,6 @@ touch "$PROJECT_NAME/backend/synth/.gitkeep"
 touch "$PROJECT_NAME/backend/pnr/.gitkeep"
 touch "$PROJECT_NAME/backend/bitstream/.gitkeep"
 touch "$PROJECT_NAME/backend/reports/.gitkeep"
-touch "$PROJECT_NAME/docs/.gitkeep"
-touch "$PROJECT_NAME/scripts/.gitkeep"
-touch "$PROJECT_NAME/tests/.gitkeep"
-touch "$PROJECT_NAME/vendor/.gitkeep"
-touch "$PROJECT_NAME/ip/.gitkeep"
 echo "  -> .gitkeep files added to preserve empty directories in Git"
 
 echo
@@ -158,12 +134,12 @@ echo "================================================"
 
 # Create enhanced Makefile from template
 echo "Creating enhanced Makefile from template..."
-if [[ -f "Makefile.template" ]]; then
+if [[ -f "Makefile.oss" ]]; then
     # Copy template and replace placeholder
-    sed "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" Makefile.template > "$PROJECT_NAME/Makefile"
+    sed "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" Makefile.oss > "$PROJECT_NAME/Makefile"
     echo "Makefile created successfully"
 else
-    echo "ERROR: Makefile.template not found!"
+    echo "ERROR: Makefile.oss not found!"
     exit 1
 fi
 
@@ -223,12 +199,6 @@ Thumbs.db
 *.directory
 
 # === Project Specific ===
-# Keep directory structure but ignore contents
-vendor/*/
-!vendor/.gitkeep
-ip/*/
-!ip/.gitkeep
-
 # Auto-generated file lists (should be regenerated)
 sources/rtl_list.f
 EOF
@@ -257,8 +227,8 @@ $PROJECT_NAME/
 ├── sources/           # Source code
 │   ├── rtl/          # RTL source files (.v, .sv)
 │   │   └── STD_MODULES.v  # Standard utility modules
-│   ├── tb/           # Testbenches  
-│   ├── include/      # Include files
+│   ├── tb/           # Testbenches
+│   ├── include/      # Include files and headers
 │   ├── constraints/  # Timing/pin constraints (.pcf, .xdc)
 │   └── rtl_list.f    # File list with absolute paths
 ├── sim/              # Simulation workspace
@@ -269,11 +239,8 @@ $PROJECT_NAME/
 │   ├── pnr/          # Place & route (.asc)
 │   ├── bitstream/    # Final bitstreams (.bin)
 │   └── reports/      # Timing/utilization reports
-├── docs/             # Documentation
-├── scripts/          # Build scripts
-├── tests/            # Test vectors
-├── vendor/           # Third-party IP
-└── ip/               # Custom IP cores
+├── Makefile          # Build system
+└── README.md         # Project documentation
 \`\`\`
 
 ## Standard Modules Library
@@ -447,8 +414,6 @@ EOF
 echo "Creating .gitkeep files for empty directories..."
 touch "$PROJECT_NAME/sources/include/.gitkeep"
 touch "$PROJECT_NAME/sources/constraints/.gitkeep"
-touch "$PROJECT_NAME/vendor/.gitkeep"
-touch "$PROJECT_NAME/ip/.gitkeep"
 
 echo
 echo "================================================"

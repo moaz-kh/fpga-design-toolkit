@@ -1058,7 +1058,7 @@ main() {
                 echo ""
                 echo "Next steps:"
                 echo "1. Restart terminal or run: source ~/.bashrc"
-                echo "2. Create projects: ./initiate_fpga_proj.sh"
+                echo "2. Create projects: ./initiate_proj.sh"
                 echo "3. Test tools: yosys -V, iverilog -V"
             fi
             ;;
@@ -1102,7 +1102,7 @@ main() {
                 echo ""
                 echo "Next steps:"
                 echo "1. Restart terminal to apply Docker group membership"
-                echo "2. Use Quartus wrapper scripts in quartus_env/ directory"
+                echo "2. Create Quartus projects: ./initiate_proj.sh (choose option 2)"
             fi
             ;;
 
@@ -1143,9 +1143,8 @@ main() {
             echo ""
             echo "Next steps:"
             echo "1. Restart terminal or run: source ~/.bashrc"
-            echo "2. Create open-source projects: ./initiate_fpga_proj.sh"
-            echo "3. Use Quartus: wrapper scripts in quartus_env/"
-            echo "4. Test tools: yosys -V, docker --version"
+            echo "2. Create projects: ./initiate_proj.sh (choose OSS or Quartus)"
+            echo "3. Test tools: yosys -V, docker --version"
             ;;
 
         *)
