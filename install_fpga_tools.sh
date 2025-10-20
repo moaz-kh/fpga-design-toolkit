@@ -1,9 +1,10 @@
 #!/bin/bash
 # Simple FPGA Design Tools Installer
 # Focus: OSS CAD Suite (comprehensive toolchain)
-# Target: WSL2 Ubuntu 22.04+
+# Target: WSL2 Ubuntu 22.04+ or Native Ubuntu/Debian-based Linux
 # Updated Oct 2025: Auto-fetch and auto-download latest OSS CAD Suite version
 # Updated Oct 2025: Unified installer with Docker and Quartus support
+# Updated Oct 2025: Support for both WSL2 and native Linux environments
 # Usage: ./install_fpga_tools.sh [--mode MODE] [--cleanup] [--reinstall] [--version YYYY-MM-DD]
 
 set -euo pipefail
@@ -216,25 +217,45 @@ setup_oss_cad_version() {
     log_info "Download URL: $OSS_CAD_URL"
 }
 
-# Basic checks
-check_wsl2() {
-    if [[ -z "${WSL_DISTRO_NAME:-}" ]]; then
-        log_error "This script requires WSL2"
-        exit 1
+# Basic checks - detect WSL2 or native Linux
+# Sets IS_WSL2 global variable for use by other functions
+IS_WSL2=false
+
+check_environment() {
+    if [[ -n "${WSL_DISTRO_NAME:-}" ]]; then
+        log_info "WSL2 environment detected: $WSL_DISTRO_NAME"
+        IS_WSL2=true
+    else
+        # Check if running on native Linux
+        if [[ -f /etc/os-release ]]; then
+            source /etc/os-release
+            log_info "Native Linux environment detected: $NAME $VERSION"
+            log_warn "WSL-specific features (version updates) will be skipped"
+            IS_WSL2=false
+        else
+            log_error "Unsupported environment - neither WSL2 nor standard Linux detected"
+            exit 1
+        fi
     fi
-    log_info "WSL2 environment detected: $WSL_DISTRO_NAME"
+
+    return 0  # Always return success
 }
 
-# Check WSL version and offer update if needed
+# Check WSL version and offer update if needed (WSL2 only)
 check_and_update_wsl() {
+    # Skip if not running on WSL2
+    if [[ "$IS_WSL2" != "true" ]]; then
+        return 0
+    fi
+
     log_info "Checking WSL version..."
-    
+
     # Get current WSL version from Windows host
     local wsl_version=""
     if command -v wsl.exe &> /dev/null; then
         wsl_version=$(wsl.exe --version 2>/dev/null | grep -E "WSL version:" | cut -d: -f2 | tr -d ' ' || echo "")
     fi
-    
+
     if [[ -z "$wsl_version" ]]; then
         log_warn "Could not determine WSL version - continuing with installation"
         return 0
@@ -1042,8 +1063,8 @@ main() {
     fi
 
     # Basic checks
-    check_wsl2
-    check_and_update_wsl
+    check_environment  # Detects WSL2 or native Linux
+    check_and_update_wsl  # Only runs on WSL2 (skipped on native Linux)
     check_resources
 
     # Execute installation based on mode

@@ -33,8 +33,20 @@ print_error() {
 QUARTUS_IMAGE="raetro/quartus:21.1"
 QUARTUS_VERSION="21.1"
 
+# Global flag to track if Docker was just installed in this session
+DOCKER_JUST_INSTALLED=false
+
+# Helper function to run docker commands with sudo if needed
+docker_cmd() {
+    if [ "$DOCKER_JUST_INSTALLED" = true ]; then
+        sudo docker "$@"
+    else
+        docker "$@"
+    fi
+}
+
 # Function to check if Docker is available
-# Updated Oct 2025: Automatically installs Docker if not found
+# Updated Oct 2025: Automatically installs Docker if not found and continues script
 check_docker() {
     if ! command -v docker >/dev/null 2>&1; then
         print_error "Docker is not installed!"
@@ -52,9 +64,12 @@ check_docker() {
             # Run install_docker.sh
             if bash "$docker_installer"; then
                 print_success "Docker installation completed!"
-                print_warning "Please restart your terminal and run this script again"
-                print_info "Run: source ~/.bashrc  (or close and reopen terminal)"
-                exit 0
+                echo ""
+                DOCKER_JUST_INSTALLED=true
+
+                print_info "Docker installed successfully - continuing with Quartus installation..."
+                print_warning "Note: You may need to restart your terminal for future Docker commands"
+                echo ""
             else
                 print_error "Docker installation failed"
                 print_info "Please try installing Docker manually"
@@ -67,15 +82,37 @@ check_docker() {
         fi
     fi
 
+    # Test Docker access
     if ! docker info >/dev/null 2>&1; then
-        print_error "Docker is not running or you don't have permission to use it"
-        print_info "Please make sure:"
-        print_info "1. Docker service is running"
-        print_info "2. You are in the docker group"
-        print_info "3. You have restarted your terminal after adding to docker group"
-        echo ""
-        print_info "If you just installed Docker, restart your terminal and try again"
-        exit 1
+        # Docker command exists but info fails - likely permission issue
+
+        if [ "$DOCKER_JUST_INSTALLED" = true ]; then
+            # Docker was just installed, group membership not active yet
+            print_warning "Docker group membership not active in current session"
+            print_info "Will use sudo for Docker commands in this script"
+            echo ""
+
+            # Test sudo docker access
+            if sudo docker info >/dev/null 2>&1; then
+                print_success "Docker is working with sudo"
+                return 0
+            else
+                print_error "Docker is not running properly even with sudo"
+                print_info "Please check Docker service: sudo systemctl status docker"
+                exit 1
+            fi
+        else
+            # Docker was already installed but not accessible
+            print_error "Docker is not running or you don't have permission to use it"
+            print_info "Please make sure:"
+            print_info "1. Docker service is running: sudo systemctl status docker"
+            print_info "2. You are in the docker group: groups $USER"
+            print_info "3. You have restarted your terminal after adding to docker group"
+            echo ""
+            print_info "Quick fix: Try restarting Docker service"
+            print_info "  sudo systemctl restart docker"
+            exit 1
+        fi
     fi
 
     print_success "Docker is available and working"
@@ -100,7 +137,7 @@ pull_quartus_image() {
     print_info "Pulling Quartus $QUARTUS_VERSION Docker image: $QUARTUS_IMAGE"
     print_warning "This may take several minutes (image size ~2GB)..."
 
-    if docker pull "$QUARTUS_IMAGE"; then
+    if docker_cmd pull "$QUARTUS_IMAGE"; then
         print_success "Successfully pulled $QUARTUS_IMAGE"
         return 0
     else
@@ -114,11 +151,11 @@ test_quartus_container() {
     print_info "Testing Quartus $QUARTUS_VERSION container..."
 
     # Test basic quartus_sh command
-    if docker run --rm "$QUARTUS_IMAGE" quartus_sh --version >/dev/null 2>&1; then
+    if docker_cmd run --rm "$QUARTUS_IMAGE" quartus_sh --version >/dev/null 2>&1; then
         print_success "Quartus $QUARTUS_VERSION container is working!"
 
         # Get and display version info
-        local version_info=$(docker run --rm "$QUARTUS_IMAGE" quartus_sh --version 2>/dev/null | head -1)
+        local version_info=$(docker_cmd run --rm "$QUARTUS_IMAGE" quartus_sh --version 2>/dev/null | head -1)
         print_info "Version: $version_info"
         return 0
     else
@@ -174,10 +211,10 @@ cleanup_quartus() {
 
     # Stop and remove any running Quartus containers
     print_info "Stopping and removing Quartus containers..."
-    local running_containers=$(docker ps -q --filter ancestor="$QUARTUS_IMAGE" 2>/dev/null)
+    local running_containers=$(docker_cmd ps -q --filter ancestor="$QUARTUS_IMAGE" 2>/dev/null)
     if [ ! -z "$running_containers" ]; then
         print_info "Stopping running Quartus containers..."
-        if docker stop $running_containers 2>/dev/null; then
+        if docker_cmd stop $running_containers 2>/dev/null; then
             print_success "Stopped running containers"
         else
             print_warning "Failed to stop some containers"
@@ -186,10 +223,10 @@ cleanup_quartus() {
     fi
 
     # Remove all containers based on the Quartus image
-    local all_containers=$(docker ps -aq --filter ancestor="$QUARTUS_IMAGE" 2>/dev/null)
+    local all_containers=$(docker_cmd ps -aq --filter ancestor="$QUARTUS_IMAGE" 2>/dev/null)
     if [ ! -z "$all_containers" ]; then
         print_info "Removing Quartus containers..."
-        if docker rm $all_containers 2>/dev/null; then
+        if docker_cmd rm $all_containers 2>/dev/null; then
             print_success "Removed Quartus containers"
         else
             print_warning "Failed to remove some containers"
@@ -199,8 +236,8 @@ cleanup_quartus() {
 
     # Remove the Quartus Docker image
     print_info "Removing Quartus Docker image..."
-    if docker image ls "$QUARTUS_IMAGE" --format "table" | grep -q "$QUARTUS_IMAGE"; then
-        if docker rmi "$QUARTUS_IMAGE" 2>/dev/null; then
+    if docker_cmd image ls "$QUARTUS_IMAGE" --format "table" | grep -q "$QUARTUS_IMAGE"; then
+        if docker_cmd rmi "$QUARTUS_IMAGE" 2>/dev/null; then
             print_success "Removed Quartus image: $QUARTUS_IMAGE"
         else
             print_warning "Failed to remove Quartus image: $QUARTUS_IMAGE"
@@ -214,7 +251,7 @@ cleanup_quartus() {
     # Clean up Docker system (remove dangling images, containers, networks)
     # Note: Custom wrapper scripts in quartus_env/ are not touched by cleanup
     print_info "Cleaning up Docker system..."
-    docker system prune -f >/dev/null 2>&1 || true
+    docker_cmd system prune -f >/dev/null 2>&1 || true
 
     # Final status
     if [ "$cleanup_errors" -eq 0 ]; then
