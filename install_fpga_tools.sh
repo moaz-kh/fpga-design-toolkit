@@ -561,20 +561,13 @@ install_fallback_tools() {
 # Install additional essential tools via apt (lighter approach)
 install_essential_apt_tools() {
     log_info "Installing additional tools via apt..."
-    
+
     sudo apt install -y \
         iverilog \
         gtkwave \
         verilator \
         openocd
-    
-    # Python packages for FPGA development
-    pip3 install --user \
-        cocotb \
-        cocotb-test \
-        amaranth \
-        fusesoc
-    
+
     log_info "Essential tools installed"
 }
 
@@ -613,18 +606,7 @@ verify_installation() {
             log_warn "- $tool not found (optional)"
         fi
     done
-    
-    # Check Python packages
-    log_info "Checking Python packages:"
-    local python_packages=("cocotb" "amaranth" "fusesoc")
-    for package in "${python_packages[@]}"; do
-        if python3 -c "import $package" &> /dev/null; then
-            log_info " $package found"
-        else
-            log_warn "- $package not found"
-        fi
-    done
-    
+
     if [ ${#missing_essential[@]} -eq 0 ]; then
         log_info "All essential tools verified!"
         if [ ${#missing_optional[@]} -gt 0 ]; then
@@ -699,19 +681,6 @@ cleanup_apt_packages() {
     sudo apt autoremove -y
     
     log_info "Apt packages removed"
-}
-
-cleanup_python_packages() {
-    log_info "Removing Python packages..."
-    
-    # Remove user-installed packages
-    pip3 uninstall -y \
-        cocotb \
-        cocotb-test \
-        amaranth \
-        fusesoc 2>/dev/null || log_warn "Some Python packages may not have been installed"
-    
-    log_info "Python packages removed"
 }
 
 cleanup_bashrc() {
@@ -924,7 +893,6 @@ perform_cleanup() {
     if [ "$CLEANUP_OSS" = true ]; then
         echo "- OSS CAD Suite installation"
         echo "- Apt packages (iverilog, gtkwave, verilator, etc.)"
-        echo "- Python packages (cocotb, amaranth, fusesoc)"
         echo "- PATH entries from ~/.bashrc"
     fi
     if [ "$CLEANUP_DOCKER" = true ]; then
@@ -947,7 +915,6 @@ perform_cleanup() {
     if [ "$CLEANUP_OSS" = true ]; then
         cleanup_oss_cad_suite
         cleanup_apt_packages
-        cleanup_python_packages
         cleanup_bashrc
     fi
 
@@ -978,7 +945,6 @@ install_oss_tools() {
     echo "- OSS CAD Suite (latest version - auto-downloaded)"
     echo "- Icarus Verilog + GTKWave (simulation and waveforms)"
     echo "- Verilator (high-performance simulation)"
-    echo "- Python packages (CocoTB, Amaranth, FuseSoC)"
     echo "- Git LFS for large file handling"
     echo ""
     echo "OSS CAD Suite will be automatically downloaded (~1.5GB)"

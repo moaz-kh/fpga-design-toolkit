@@ -46,7 +46,7 @@ The installation script now includes comprehensive management capabilities:
 - `--reinstall` option performs cleanup followed by fresh installation
 - Safely restores write permissions before removal
 - Removes PATH entries from ~/.bashrc with backup
-- Cleans up apt packages, Python packages, and symlinks
+- Cleans up apt packages and symlinks
 
 ### Generated Project Structure
 
@@ -251,7 +251,6 @@ make list-modules RTL_DIR=custom_rtl TB_DIR=custom_tb
    - Icarus Verilog and GTKWave
    - Docker engine installation
    - Quartus Prime Lite in Docker (raetro/quartus:21.1)
-   - Python packages (CocoTB, Amaranth, FuseSoC)
    - Complete cleanup and reinstall functionality (`--cleanup`, `--reinstall`)
    - Installation verification and fallback options 
 
