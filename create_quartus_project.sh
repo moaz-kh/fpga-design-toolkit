@@ -10,6 +10,8 @@ set -e  # Exit on any error
 declare -A BOARD_CONFIGS
 BOARD_CONFIGS["tei0010"]="MAX 10:10M08SAU169C8GES:U169:-8"
 BOARD_CONFIGS["de10-lite"]="MAX 10:10M50DAF484C7G:F484:-7"
+BOARD_CONFIGS["de2-115"]="Cyclone IV E:EP4CE115F29C7N:F780:-7"
+BOARD_CONFIGS["de10-standard"]="Cyclone V:5CSXFC6D6F31C6N:F31:-6"
 
 # Default board
 DEFAULT_BOARD="tei0010"
@@ -269,6 +271,76 @@ set_location_assignment PIN_A11 -to LED[8]
 set_location_assignment PIN_B11 -to LED[9]
 
 EOF
+elif [[ "$BOARD_TYPE" == "de2-115" ]]; then
+    cat >> create_quartus_project.tcl << 'EOF'
+
+# DE2-115 specific settings
+# NOTE: Verify pin assignments against DE2-115 User Manual Table 3-5, Table 4-1
+set_global_assignment -name SDC_FILE sources/constraints/de2_115_timing.sdc
+
+# Clock (50MHz)
+set_location_assignment PIN_Y2 -to CLOCK_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CLOCK_50
+
+# Reset (KEY[0] - active low)
+set_location_assignment PIN_M23 -to KEY0
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to KEY0
+
+# LEDs (LEDR[7:0])
+set_location_assignment PIN_G19 -to LEDR[0]
+set_location_assignment PIN_F19 -to LEDR[1]
+set_location_assignment PIN_E19 -to LEDR[2]
+set_location_assignment PIN_F21 -to LEDR[3]
+set_location_assignment PIN_F18 -to LEDR[4]
+set_location_assignment PIN_E18 -to LEDR[5]
+set_location_assignment PIN_J19 -to LEDR[6]
+set_location_assignment PIN_H19 -to LEDR[7]
+
+set_instance_assignment -name IO_STANDARD "2.5 V" -to LEDR[0]
+set_instance_assignment -name IO_STANDARD "2.5 V" -to LEDR[1]
+set_instance_assignment -name IO_STANDARD "2.5 V" -to LEDR[2]
+set_instance_assignment -name IO_STANDARD "2.5 V" -to LEDR[3]
+set_instance_assignment -name IO_STANDARD "2.5 V" -to LEDR[4]
+set_instance_assignment -name IO_STANDARD "2.5 V" -to LEDR[5]
+set_instance_assignment -name IO_STANDARD "2.5 V" -to LEDR[6]
+set_instance_assignment -name IO_STANDARD "2.5 V" -to LEDR[7]
+
+EOF
+elif [[ "$BOARD_TYPE" == "de10-standard" ]]; then
+    cat >> create_quartus_project.tcl << 'EOF'
+
+# DE10-Standard specific settings
+# NOTE: Verify pin assignments against DE10-Standard User Manual Table 3-5
+set_global_assignment -name SDC_FILE sources/constraints/de10_standard_timing.sdc
+
+# Clock (50MHz - FPGA_CLK1_50)
+set_location_assignment PIN_AF14 -to CLOCK_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to CLOCK_50
+
+# Reset (KEY[0] - active low)
+set_location_assignment PIN_AA14 -to KEY0
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to KEY0
+
+# LEDs (LEDR[7:0])
+set_location_assignment PIN_W20 -to LEDR[0]
+set_location_assignment PIN_Y19 -to LEDR[1]
+set_location_assignment PIN_W19 -to LEDR[2]
+set_location_assignment PIN_W17 -to LEDR[3]
+set_location_assignment PIN_V18 -to LEDR[4]
+set_location_assignment PIN_V17 -to LEDR[5]
+set_location_assignment PIN_W16 -to LEDR[6]
+set_location_assignment PIN_V16 -to LEDR[7]
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LEDR[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LEDR[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LEDR[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LEDR[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LEDR[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LEDR[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LEDR[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LEDR[7]
+
+EOF
 fi
 
 # Finalize TCL script
@@ -421,6 +493,116 @@ set_input_delay -clock { clk_sys } -min 5 [get_ports RESET]
 # Output delays
 set_output_delay -clock { clk_sys } -max 5 [get_ports LED[*]]
 set_output_delay -clock { clk_sys } -min 5 [get_ports LED[*]]
+EOF
+
+elif [[ "$BOARD_TYPE" == "de2-115" ]]; then
+    print_info "Creating DE2-115 RTL template..."
+    cat > sources/rtl/${PROJECT_NAME}.v << EOF
+module ${PROJECT_NAME} (
+    input         CLOCK_50,        // 50MHz oscillator input
+    input         KEY0,             // Reset button (active low)
+    output [7:0]  LEDR              // 8 red LEDs
+);
+
+    // Counter for LED blink control (50MHz clock)
+    reg [28:0] counter;
+    reg [7:0] led_state;
+
+    // LED output assignment
+    assign LEDR = led_state;
+
+    initial begin
+        counter <= 29'd0;
+        led_state <= 8'h01;
+    end
+    // LED control logic
+    always @(posedge CLOCK_50) begin
+        if (~KEY0) begin
+            counter <= 29'd0;
+            led_state <= 8'h01;
+        end else begin
+            counter <= counter + 1;
+
+            // Update LEDs every ~10.7 seconds (2^29 / 50MHz)
+            if (counter == 29'h1FFFFFFF) begin
+                led_state <= {led_state[6:0], led_state[7]}; // Rotate left
+            end
+        end
+    end
+
+endmodule
+EOF
+
+    # Create timing constraints for DE2-115
+    print_info "Creating DE2-115 timing constraints..."
+    cat > sources/constraints/de2_115_timing.sdc << 'EOF'
+# DE2-115 Timing Constraints
+# 50MHz clock constraint (20ns period)
+
+create_clock -period 20.000 -name clk_sys [get_ports CLOCK_50]
+
+# Input delays
+set_input_delay -clock { clk_sys } -max 5 [get_ports KEY0]
+set_input_delay -clock { clk_sys } -min 5 [get_ports KEY0]
+
+# Output delays
+set_output_delay -clock { clk_sys } -max 5 [get_ports LEDR[*]]
+set_output_delay -clock { clk_sys } -min 5 [get_ports LEDR[*]]
+EOF
+
+elif [[ "$BOARD_TYPE" == "de10-standard" ]]; then
+    print_info "Creating DE10-Standard RTL template..."
+    cat > sources/rtl/${PROJECT_NAME}.v << EOF
+module ${PROJECT_NAME} (
+    input         CLOCK_50,        // 50MHz oscillator input
+    input         KEY0,             // Reset button (active low)
+    output [7:0]  LEDR              // 8 red LEDs
+);
+
+    // Counter for LED blink control (50MHz clock)
+    reg [28:0] counter;
+    reg [7:0] led_state;
+
+    // LED output assignment
+    assign LEDR = led_state;
+
+    initial begin
+        counter <= 29'd0;
+        led_state <= 8'h01;
+    end
+    // LED control logic
+    always @(posedge CLOCK_50) begin
+        if (~KEY0) begin
+            counter <= 29'd0;
+            led_state <= 8'h01;
+        end else begin
+            counter <= counter + 1;
+
+            // Update LEDs every ~10.7 seconds (2^29 / 50MHz)
+            if (counter == 29'h1FFFFFFF) begin
+                led_state <= {led_state[6:0], led_state[7]}; // Rotate left
+            end
+        end
+    end
+
+endmodule
+EOF
+
+    # Create timing constraints for DE10-Standard
+    print_info "Creating DE10-Standard timing constraints..."
+    cat > sources/constraints/de10_standard_timing.sdc << 'EOF'
+# DE10-Standard Timing Constraints
+# 50MHz clock constraint (20ns period)
+
+create_clock -period 20.000 -name clk_sys [get_ports CLOCK_50]
+
+# Input delays
+set_input_delay -clock { clk_sys } -max 5 [get_ports KEY0]
+set_input_delay -clock { clk_sys } -min 5 [get_ports KEY0]
+
+# Output delays
+set_output_delay -clock { clk_sys } -max 5 [get_ports LEDR[*]]
+set_output_delay -clock { clk_sys } -min 5 [get_ports LEDR[*]]
 EOF
 
 else

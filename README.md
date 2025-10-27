@@ -27,9 +27,8 @@ chmod +x install_fpga_tools.sh
 
 **The installer will ask you what you want to install:**
 1. **Open-source FPGA tools** (Yosys, NextPNR, Icarus Verilog, GTKWave) - Perfect for iCE40 and open FPGA development
-2. **Docker engine** - If you just need Docker
-3. **Quartus Prime Lite in Docker** - Intel/Altera FPGA toolchain, free and containerized
-4. **Everything** - All tools for maximum flexibility
+2. **Quartus Prime Lite in Docker** - Intel/Altera FPGA toolchain (includes Docker), free and containerized
+3. **Everything** - All tools for maximum flexibility
 
 > 💡 **Tip**: Not sure? Start with option 1 (open-source tools) - it's the fastest way to get started!
 
@@ -113,7 +112,7 @@ Ready-to-use Verilog modules included in every project:
 ### 🎯 FPGA Family Support
 - **iCE40** - Full open-source support (Lattice) - synth, P&R, bitstream, programming
 - **ECP5** - Open-source ready (Lattice) - framework in place for implementation
-- **Intel/Altera** - Via Quartus Docker (Cyclone IV, MAX 10) - full vendor toolchain with GUI support
+- **Intel/Altera** - Via Quartus Docker (Cyclone IV, Cyclone V, MAX 10) - full vendor toolchain with GUI support
 - **Xilinx** - Framework ready for future integration
 
 ### 📟 Supported Development Boards
@@ -125,7 +124,8 @@ Ready-to-use Verilog modules included in every project:
 **Quartus Projects:**
 - **TEI0010** - Intel MAX 10 (10M08SAU169C8GES) - Default board
 - **DE10-Lite** - Intel MAX 10 (10M50DAF484C7G)
-- **Cyclone IV E** - Generic EP4CE22F17C6
+- **DE2-115** - Cyclone IV E (EP4CE115F29C7N)
+- **DE10-Standard** - Cyclone V SX SoC (5CSXFC6D6F31C6N)
 
 ### 🧪 Example Projects
 Auto-generated 8-bit adder with:
@@ -160,9 +160,9 @@ Perfect for Intel/Altera FPGA development (Cyclone, MAX 10, etc.)
 ## Requirements
 
 - **Linux**: Ubuntu 20.04+ or WSL2  
-- **RAM**: 4GB+ (8GB recommended)  
-- **Disk**: 10GB+ free space  
-- **WSL**: Automatic update check ensures latest version for optimal performance  
+- **RAM**: 4GB+ (8GB recommended)
+- **Disk**: 10GB+ free space
+- **WSL**: WSL2 recommended for Windows users (update via Windows Update if needed)  
 
 ## Use Cases
 
@@ -183,7 +183,7 @@ The installer is smart and flexible - you can run it interactively or specify ex
 Just run the installer and pick what you need from the menu:
 ```bash
 ./install_fpga_tools.sh
-# Choose from: OSS tools, Docker, Quartus, or Everything!
+# Choose from: OSS tools, Quartus (includes Docker), or Everything!
 ```
 
 ### ⚡ Direct Mode (For automation or scripts)
@@ -191,9 +191,6 @@ Specify your choice upfront:
 ```bash
 # Install open-source FPGA tools only
 ./install_fpga_tools.sh --mode=oss
-
-# Install Docker engine only
-./install_fpga_tools.sh --mode=docker
 
 # Install Quartus (includes Docker)
 ./install_fpga_tools.sh --mode=quartus
@@ -219,12 +216,13 @@ Keep your system tidy or start fresh:
 ```
 
 ### 🛡️ What the Installer Does For You
-- **WSL Version Check**: Automatically detects and offers to update WSL to latest version (better performance!)
+- **Environment Detection**: Automatically detects WSL2 or native Linux environments
 - **Write Protection**: Protects OSS CAD Suite installation from accidental corruption
 - **Safe Cleanup**: Complete removal with automatic permission restoration
 - **Verification**: Tests all tools after installation to make sure everything works
 - **Fallback Options**: If something fails, automatically tries alternative installation methods
 - **Smart Dependencies**: Installing Quartus? Docker gets installed automatically first!
+- **Flexible Input**: Accepts yes/no in any format (y, Y, yes, YES, n, N, no, NO, etc.)
 
 ### 🔧 Manual Installation (If you prefer DIY)
 ```bash
@@ -605,10 +603,8 @@ make quartus-reports REPORT_OPTION=timing
 ### WSL2 Specific Issues
 
 **WSL version too old:**
-```bash
-# The installer checks and offers to update WSL
-./install_fpga_tools.sh
-```
+- Update WSL via Windows Update or PowerShell: `wsl --update`
+- Ensure you're running WSL2: `wsl --set-version Ubuntu-22.04 2`
 
 **USB device not visible after attach:**
 - Check in Windows: `usbipd list` (STATE column should show "Attached")

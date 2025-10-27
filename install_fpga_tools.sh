@@ -22,7 +22,6 @@ OSS_CAD_URL=""
 
 # Installation mode
 # oss: Open-source FPGA tools only (default)
-# docker: Docker engine only
 # quartus: Docker + Quartus container
 # all: Everything (OSS + Docker + Quartus)
 INSTALL_MODE=""
@@ -37,12 +36,31 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+# Helper function to check if user input is "yes"
+# Accepts: y, Y, yes, YES, Yes, etc.
+# Returns: 0 for yes, 1 for no
+is_yes() {
+    local response="$1"
+    # Convert to lowercase and check
+    response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
+    [[ "$response" == "y" || "$response" == "yes" ]]
+}
+
+# Helper function to check if user input is "no"
+# Accepts: n, N, no, NO, No, etc.
+# Returns: 0 for no, 1 for not-no
+is_no() {
+    local response="$1"
+    # Convert to lowercase and check
+    response=$(echo "$response" | tr '[:upper:]' '[:lower:]')
+    [[ "$response" == "n" || "$response" == "no" ]]
+}
+
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
     echo "Options:"
     echo "  --mode <mode>      Installation mode (if not provided, interactive menu shown)"
     echo "                     oss      - Open-source FPGA tools only (OSS CAD Suite, Icarus, GTKWave)"
-    echo "                     docker   - Docker engine only"
     echo "                     quartus  - Docker + Quartus Prime container"
     echo "                     all      - Everything (OSS tools + Docker + Quartus)"
     echo "  --cleanup          Remove installed components (interactive menu if not specified)"
@@ -60,7 +78,7 @@ show_usage() {
     echo "  $0 --mode=quartus           # Install Docker + Quartus (for Intel FPGA)"
     echo "  $0 --mode=all               # Install everything"
     echo "  $0 --cleanup                # Interactive cleanup menu"
-    echo "  $0 --cleanup-docker         # Remove Docker only"
+    echo "  $0 --cleanup-oss            # Remove OSS tools only"
 }
 
 # Parse command line arguments
@@ -78,7 +96,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --mode)
             if [[ -z "${2:-}" ]] || [[ "$2" == --* ]]; then
-                log_error "Option --mode requires an argument (oss|docker|quartus|all)"
+                log_error "Option --mode requires an argument (oss|quartus|all)"
                 show_usage
                 exit 1
             fi
@@ -133,12 +151,12 @@ done
 # Validate INSTALL_MODE if provided
 if [[ -n "$INSTALL_MODE" ]]; then
     case "$INSTALL_MODE" in
-        oss|docker|quartus|all)
+        oss|quartus|all)
             # Valid mode
             ;;
         *)
             log_error "Invalid mode: $INSTALL_MODE"
-            log_error "Valid modes: oss, docker, quartus, all"
+            log_error "Valid modes: oss, quartus, all"
             show_usage
             exit 1
             ;;
@@ -241,116 +259,6 @@ check_environment() {
     return 0  # Always return success
 }
 
-# Check WSL version and offer update if needed (WSL2 only)
-check_and_update_wsl() {
-    # Skip if not running on WSL2
-    if [[ "$IS_WSL2" != "true" ]]; then
-        return 0
-    fi
-
-    log_info "Checking WSL version..."
-
-    # Get current WSL version from Windows host
-    local wsl_version=""
-    if command -v wsl.exe &> /dev/null; then
-        wsl_version=$(wsl.exe --version 2>/dev/null | grep -E "WSL version:" | cut -d: -f2 | tr -d ' ' || echo "")
-    fi
-
-    if [[ -z "$wsl_version" ]]; then
-        log_warn "Could not determine WSL version - continuing with installation"
-        return 0
-    fi
-    
-    log_info "Current WSL version: $wsl_version"
-    
-    # Check if WSL update is available (this is a simplified check)
-    # In practice, WSL updates are managed by Windows Update
-    local update_available=false
-    
-    # Check if wsl --update command is available (indicates newer WSL)
-    if wsl.exe --help 2>/dev/null | grep -q "\--update"; then
-        log_info "WSL update command available - checking for updates..."
-        
-        echo ""
-        echo "========================================"
-        echo "WSL Update Check"
-        echo "========================================"
-        echo ""
-        echo "WSL can be updated to the latest version for better performance"
-        echo "and compatibility with FPGA development tools."
-        echo ""
-        echo "This will:"
-        echo "- Update WSL to the latest version"
-        echo "- Not affect your current Linux distribution"
-        echo "- Not affect your files or installed programs"
-        echo "- Improve overall WSL performance and stability"
-        echo ""
-        
-        read -p "Would you like to update WSL to the latest version? [y/N]: " -n 1 -r
-        echo
-        
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            update_wsl_safely
-        else
-            log_info "Skipping WSL update - continuing with FPGA tools installation"
-        fi
-    else
-        log_warn "WSL update command not available - you may have an older WSL version"
-        log_warn "Consider updating WSL manually via Windows Store or Windows Update"
-    fi
-}
-
-# Safely update WSL
-update_wsl_safely() {
-    log_info "Updating WSL..."
-    
-    # Create a backup note about current state
-    echo "WSL update initiated at $(date)" >> "$HOME/.wsl_update_log" 2>/dev/null || true
-    
-    # Try to update WSL from Windows side
-    if wsl.exe --update 2>/dev/null; then
-        log_info "WSL updated successfully!"
-        log_info "The update will take effect after restarting WSL"
-        
-        echo ""
-        echo "========================================"
-        echo "WSL Update Complete"
-        echo "========================================"
-        echo ""
-        echo "WSL has been updated. The changes will take effect after"
-        echo "restarting your WSL session."
-        echo ""
-        echo "You can:"
-        echo "1. Continue with FPGA tools installation (recommended)"
-        echo "2. Restart WSL now and re-run this script"
-        echo ""
-        
-        read -p "Continue with installation? [Y/n]: " -n 1 -r
-        echo
-        
-        if [[ $REPLY =~ ^[Nn]$ ]]; then
-            log_info "Installation paused. Please restart WSL and re-run this script."
-            echo ""
-            echo "To restart WSL:"
-            echo "1. Close all WSL terminals"
-            echo "2. From Windows Command Prompt or PowerShell, run:"
-            echo "   wsl --shutdown"
-            echo "3. Re-open your WSL terminal"
-            echo "4. Re-run this script: ./install_fpga_tools.sh"
-            exit 0
-        fi
-    else
-        log_warn "WSL update failed or no update available"
-        log_warn "Continuing with current WSL version"
-        
-        # Check if we need to recommend manual update
-        if [[ "$wsl_version" < "1.0" ]]; then
-            log_warn "Your WSL version may be quite old"
-            log_warn "Consider updating via Windows Store or Windows Update"
-        fi
-    fi
-}
-
 check_resources() {
     local ram_gb disk_gb
     ram_gb=$(awk '/MemTotal/ {print int($2/1024/1024)}' /proc/meminfo)
@@ -451,10 +359,9 @@ install_oss_cad_suite() {
             echo "4. Come back here and confirm when download is complete"
             echo ""
 
-            read -p "Have you downloaded the file? [y/N]: " -n 1 -r
-            echo
+            read -p "Have you downloaded the file? [yes/no]: " -r REPLY
 
-            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            if ! is_yes "$REPLY"; then
                 echo "Download cancelled. Please download manually and re-run this script."
                 exit 0
             fi
@@ -780,24 +687,21 @@ show_installation_menu() {
     echo "   - Complete open-source toolchain for iCE40 and other FPGAs"
     echo "   - No license required, ~1.5GB download"
     echo ""
-    echo "2) Docker engine only"
-    echo "   - Container platform for isolated development environments"
-    echo "   - Required for Quartus Docker option"
-    echo ""
-    echo "3) Quartus Prime Lite Docker (includes Docker)"
+    echo "2) Quartus Prime Lite Docker (includes Docker)"
     echo "   - Intel Quartus in Docker container"
     echo "   - For Intel/Altera FPGA development"
-    echo "   - Free, no license required, ~2GB download"
+    echo "   - Free, no license required, ~5GB download"
     echo ""
-    echo "4) Everything (OSS tools + Docker + Quartus)"
+    echo "3) Everything (OSS tools + Docker + Quartus)"
     echo "   - Complete FPGA development environment"
     echo "   - Both open-source and Intel toolchains"
+    echo "   - Free, no license required, ~7GB download"
     echo ""
-    echo "5) Exit"
+    echo "4) Exit"
     echo ""
 
     while true; do
-        read -p "Enter your choice [1-5]: " choice
+        read -p "Enter your choice [1-4]: " choice
         case $choice in
             1)
                 INSTALL_MODE="oss"
@@ -805,30 +709,24 @@ show_installation_menu() {
                 break
                 ;;
             2)
-                INSTALL_MODE="docker"
-                log_info "Selected: Docker engine"
-                break
-                ;;
-            3)
                 INSTALL_MODE="quartus"
                 log_info "Selected: Quartus Prime Lite Docker"
                 break
                 ;;
-            4)
+            3)
                 INSTALL_MODE="all"
                 log_info "Selected: Everything"
                 break
                 ;;
-            5)
+            4)
                 log_info "Installation cancelled"
                 exit 0
                 ;;
             *)
-                echo "Invalid choice. Please enter 1-5."
+                log_error "Invalid choice. Please enter a number between 1 and 4."
                 ;;
         esac
     done
-    echo ""
 }
 
 # Interactive cleanup menu
@@ -841,14 +739,13 @@ show_cleanup_menu() {
     echo "What would you like to remove?"
     echo ""
     echo "1) OSS CAD Suite and related tools"
-    echo "2) Docker engine"
-    echo "3) Quartus Docker containers and images"
-    echo "4) Everything (all components)"
-    echo "5) Cancel"
+    echo "2) Quartus Docker containers, images, and Docker engine"
+    echo "3) Everything (all components)"
+    echo "4) Cancel"
     echo ""
 
     while true; do
-        read -p "Enter your choice [1-5]: " choice
+        read -p "Enter your choice [1-4]: " choice
         case $choice in
             1)
                 CLEANUP_OSS=true
@@ -857,27 +754,23 @@ show_cleanup_menu() {
                 ;;
             2)
                 CLEANUP_DOCKER=true
-                log_info "Selected: Remove Docker"
+                CLEANUP_QUARTUS=true
+                log_info "Selected: Remove Quartus Docker and Docker engine"
                 break
                 ;;
             3)
-                CLEANUP_QUARTUS=true
-                log_info "Selected: Remove Quartus Docker"
-                break
-                ;;
-            4)
                 CLEANUP_OSS=true
                 CLEANUP_DOCKER=true
                 CLEANUP_QUARTUS=true
                 log_info "Selected: Remove everything"
                 break
                 ;;
-            5)
+            4)
                 log_info "Cleanup cancelled"
                 exit 0
                 ;;
             *)
-                echo "Invalid choice. Please enter 1-5."
+                log_error "Invalid choice. Please enter a number between 1 and 4."
                 ;;
         esac
     done
@@ -904,9 +797,8 @@ perform_cleanup() {
     fi
     echo ""
 
-    read -p "Are you sure you want to proceed? [y/N]: " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    read -p "Are you sure you want to proceed? [yes/no]: " -r REPLY
+    if ! is_yes "$REPLY"; then
         log_info "Cleanup cancelled"
         exit 0
     fi
@@ -951,9 +843,8 @@ install_oss_tools() {
     echo "Installation location: $WORKSPACE_DIR"
     echo ""
 
-    read -p "Proceed with OSS tools installation? [y/N]: " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    read -p "Proceed with OSS tools installation? [yes/no]: " -r REPLY
+    if ! is_yes "$REPLY"; then
         log_info "OSS tools installation cancelled"
         return 1
     fi
@@ -1004,9 +895,6 @@ main() {
             oss)
                 CLEANUP_OSS=true
                 ;;
-            docker)
-                CLEANUP_DOCKER=true
-                ;;
             quartus)
                 CLEANUP_DOCKER=true
                 CLEANUP_QUARTUS=true
@@ -1030,13 +918,11 @@ main() {
 
     # Basic checks
     check_environment  # Detects WSL2 or native Linux
-    check_and_update_wsl  # Only runs on WSL2 (skipped on native Linux)
     check_resources
 
     # Execute installation based on mode
     case "$INSTALL_MODE" in
         oss)
-            log_info "Installing open-source FPGA tools..."
             if install_oss_tools; then
                 echo ""
                 echo "========================================"
@@ -1047,21 +933,6 @@ main() {
                 echo "1. Restart terminal or run: source ~/.bashrc"
                 echo "2. Create projects: ./initiate_proj.sh"
                 echo "3. Test tools: yosys -V, iverilog -V"
-            fi
-            ;;
-
-        docker)
-            log_info "Installing Docker engine..."
-            if install_docker_engine; then
-                echo ""
-                echo "========================================"
-                echo "Installation Complete!"
-                echo "========================================"
-                echo ""
-                echo "Next steps:"
-                echo "1. Restart terminal to apply Docker group membership"
-                echo "2. Test Docker: docker run hello-world"
-                echo "3. Install Quartus: ./install_fpga_tools.sh --mode=quartus"
             fi
             ;;
 
@@ -1136,6 +1007,7 @@ main() {
 
         *)
             log_error "Invalid installation mode: $INSTALL_MODE"
+            log_error "Valid modes: oss, quartus, all"
             exit 1
             ;;
     esac

@@ -10,7 +10,7 @@ This is an FPGA Design Toolkit that provides a complete open-source FPGA develop
 
 ### Initial Setup
 ```bash
-# Install all FPGA tools (run once) - includes WSL update check
+# Install all FPGA tools (run once)
 ./install_fpga_tools.sh
 
 # Clean reinstall if needed (complete cleanup + fresh install)
@@ -28,12 +28,20 @@ Note: `initiate_proj.sh` is the main entry point - it presents an interactive me
 ### Advanced Installation Features
 The installation script now includes comprehensive management capabilities:
 
-**WSL Version Management:**
-- Automatically detects current WSL version
-- Offers to update to latest WSL version for better performance
-- Safe update process that doesn't affect your Linux distribution
-- User confirmation required before any updates
-- Graceful fallback if update fails or isn't needed
+**Installation Modes:**
+- **oss** - Open-source FPGA tools only (OSS CAD Suite, Icarus Verilog, GTKWave)
+- **quartus** - Docker + Quartus Prime Lite container (Docker installed automatically)
+- **all** - Everything (OSS tools + Docker + Quartus)
+
+**User-Friendly Input:**
+- Flexible yes/no input handling (accepts: y, Y, yes, YES, Yes, n, N, no, NO, No, etc.)
+- Clear prompts with [yes/no] format instead of [y/N]
+- Consistent input validation across all prompts
+
+**Environment Detection:**
+- Automatically detects WSL2 or native Linux environments
+- Adapts installation process based on environment
+- No WSL-specific features on native Linux
 
 **Installation Protection:**
 - Write-protects OSS CAD Suite installation to prevent accidental modification
@@ -213,7 +221,7 @@ make list-modules RTL_DIR=custom_rtl TB_DIR=custom_tb
 
 3. **create_quartus_project.sh** - Quartus project creation script:
    - Creates Quartus-specific directory structure
-   - Supports multiple boards (TEI0010, DE10-Lite, Cyclone IV)
+   - Supports multiple boards (TEI0010, DE10-Lite, DE2-115, DE10-Standard)
    - Generates .qpf, .qsf with pin assignments and timing constraints
    - Creates customized Makefile from Makefile.quartus template
    - RTL template with board-specific LED blinker example
@@ -245,13 +253,15 @@ make list-modules RTL_DIR=custom_rtl TB_DIR=custom_tb
    - `spi_interface_debounce` - SPI signal debouncing
 
 8. **install_fpga_tools.sh** - Advanced tool installation and management:
-   - Interactive mode selection (OSS, Docker, Quartus, or All)
-   - WSL version checking and updating (automatic detection and safe updates)
+   - Interactive mode selection (OSS, Quartus, or All)
+   - Three installation modes: oss, quartus (includes Docker), all
+   - Environment detection (WSL2 or native Linux)
    - OSS CAD Suite (Yosys, NextPNR, icestorm tools) with write protection
    - Icarus Verilog and GTKWave
-   - Docker engine installation
+   - Docker engine installation (automatic with Quartus)
    - Quartus Prime Lite in Docker (raetro/quartus:21.1)
    - Complete cleanup and reinstall functionality (`--cleanup`, `--reinstall`)
+   - Flexible yes/no input handling (y/Y/yes/YES/n/N/no/NO accepted)
    - Installation verification and fallback options 
 
 ### FPGA Family Support
@@ -262,7 +272,8 @@ make list-modules RTL_DIR=custom_rtl TB_DIR=custom_tb
 
 **Quartus Toolchain:**
 - **Intel MAX 10** - Full support (TEI0010, DE10-Lite boards)
-- **Cyclone IV E** - Full support (generic template)
+- **Cyclone IV E** - Full support (DE2-115 board)
+- **Cyclone V SX SoC** - Full support (DE10-Standard board)
 - **Other Intel/Altera** - Framework ready for extension
 
 ### Supported Development Boards
@@ -274,7 +285,8 @@ make list-modules RTL_DIR=custom_rtl TB_DIR=custom_tb
 **Quartus:**
 - **TEI0010** - Intel MAX 10 (10M08SAU169C8GES) - Default
 - **DE10-Lite** - Intel MAX 10 (10M50DAF484C7G)
-- **Cyclone IV E** - Generic EP4CE22F17C6
+- **DE2-115** - Cyclone IV E (EP4CE115F29C7N)
+- **DE10-Standard** - Cyclone V SX SoC (5CSXFC6D6F31C6N)
 
 ### Default Configuration
 
