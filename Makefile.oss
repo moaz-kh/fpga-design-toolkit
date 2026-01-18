@@ -326,6 +326,9 @@ waves:
 	else \
 		echo "ERROR: No waveform files found"; \
 		echo "TIP: Run 'make sim' first to generate waveforms"; \
+		echo "TIP: also make sure that .vcd file exists inside sim/waves"; \
+		echo "TIP: all your .vcd files are listed here :"; \
+		find . -name "*.vcd" -type f | head -1; \
 		exit 1; \
 	fi
 
