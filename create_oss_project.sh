@@ -127,6 +127,114 @@ touch "$PROJECT_NAME/backend/bitstream/.gitkeep"
 touch "$PROJECT_NAME/backend/reports/.gitkeep"
 echo "  -> .gitkeep files added to preserve empty directories in Git"
 
+
+# Create .vscode files to Enhance VS Code integration with project-specific
+echo "Creating .vscode files to nhance VS Code integration..."
+mkdir "$PROJECT_NAME/.vscode"
+# Create the tasks.json file
+    echo "Creating .vscode/tasks.json..."
+    cat > "$PROJECT_NAME/.vscode/tasks.json" << 'EOF'
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "all"
+            ],
+            "detail": "Complete flow for current family: synth -> pnr -> bitstream",
+            "problemMatcher": []
+        },
+        {
+            "label": "Clean",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "clean"
+            ],
+            "detail": "Clean generated files",
+            "problemMatcher": []
+        },
+        {
+            "label": "Clean All",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "clean-all"
+            ],
+            "detail": "Clean everything including logs",
+            "problemMatcher": []
+        },
+        {
+            "label": "Simulate",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "sim"
+            ],
+            "detail": "Update list and run simulation",
+            "problemMatcher": []
+        },
+        {
+            "label": "View Waveform",
+            "type": "process",
+            "command": "make",
+            "args": [
+                "waves"
+            ],
+            "detail": "View waveforms with GTKWave (loads .gtkw session if available)",
+            "problemMatcher": []
+        },
+        {
+            "label": "Quick Test",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "quick-test"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Update list and run simulation",
+            "problemMatcher": []
+        },
+        {
+            "label": "Clean",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "clean"
+            ],
+            "detail": "Clean generated files",
+            "problemMatcher": []
+        },
+        {
+            "label": "ice40",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "ice40"
+            ],
+            "detail": "Complete iCE40 flow (synth+pnr+timing+bitstream)",
+            "problemMatcher": []
+        },
+        {
+            "label": "Program ice40",
+            "type": "shell",
+            "command": "make",
+            "args": [
+                "prog-ice40"
+            ],
+            "detail": "Program iCE40 device",
+            "problemMatcher": []
+        }
+    ]
+}
+EOF
+
 echo
 echo "================================================"
 echo "Creating Template Files"
@@ -684,7 +792,7 @@ EOF
     echo "Created: sources/rtl/adder.v"
     echo "Created: sources/tb/adder_tb.v"
     echo "Created: sources/constraints/adder.pcf"
-    
+
     # Auto-update the file list
     echo "Updating file list..."
     cd "$PROJECT_NAME"
@@ -780,7 +888,6 @@ echo "Project setup complete!"
 # 
 # Implementation would add:
 # - .vscode/settings.json with Verilog file associations and editor preferences
-# - .vscode/tasks.json integrating Makefile targets (sim, synth, waves) into VS Code GUI
 # - .vscode/launch.json for debugging configurations  
 # - project_name.code-workspace for multi-folder workspace organization
 # - Automatic extension recommendations (Verilog HDL, TerosHDL, etc.)
