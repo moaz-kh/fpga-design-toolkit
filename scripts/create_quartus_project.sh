@@ -650,11 +650,11 @@ echo "Copying Build System"
 echo "================================================"
 
 # Copy and customize Makefile for this project
-if [[ -f "../Makefile.quartus" ]]; then
+if [[ -f "../scripts/Makefile.quartus" ]]; then
     print_info "Copying and customizing Makefile for project: $PROJECT_NAME"
 
     # Copy Makefile
-    cp ../Makefile.quartus Makefile.tmp
+    cp ../scripts/Makefile.quartus Makefile.tmp
 
     # Customize with project-specific settings
     sed -i "s|^# Project name - auto-detect from .qpf file or override with: make target PROJECT=yourproject|# Project name - configured during project creation (can still override with PROJECT=name)|" Makefile.tmp
@@ -666,8 +666,8 @@ if [[ -f "../Makefile.quartus" ]]; then
     print_success "Makefile configured for project: $PROJECT_NAME"
     print_info "Board: $BOARD_TYPE ($FPGA_DEVICE)"
 else
-    print_warning "Makefile.quartus not found in parent directory (../Makefile.quartus)"
-    print_warning "You may need to manually copy the Makefile.quartus to this project"
+    print_warning "Makefile.quartus not found at ../scripts/Makefile.quartus"
+    print_warning "Please run this script from the fpga-design-toolkit root directory"
 fi
 
 echo

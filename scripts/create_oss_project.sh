@@ -11,9 +11,9 @@ echo "================================================"
 echo "Welcome to the enhanced FPGA project setup wizard!"
 
 # Check if Makefile.oss exists
-if [[ ! -f "Makefile.oss" ]]; then
-    echo "ERROR: Makefile.oss not found in current directory!"
-    echo "Please ensure Makefile.oss is in the same directory as this script."
+if [[ ! -f "scripts/Makefile.oss" ]]; then
+    echo "ERROR: scripts/Makefile.oss not found!"
+    echo "Please run this script from the fpga-design-toolkit root directory."
     exit 1
 fi
 
@@ -134,12 +134,12 @@ echo "================================================"
 
 # Create enhanced Makefile from template
 echo "Creating enhanced Makefile from template..."
-if [[ -f "Makefile.oss" ]]; then
+if [[ -f "scripts/Makefile.oss" ]]; then
     # Copy template and replace placeholder
-    sed "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" Makefile.oss > "$PROJECT_NAME/Makefile"
+    sed "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" "scripts/Makefile.oss" > "$PROJECT_NAME/Makefile"
     echo "Makefile created successfully"
 else
-    echo "ERROR: Makefile.oss not found!"
+    echo "ERROR: scripts/Makefile.oss not found!"
     exit 1
 fi
 
@@ -421,13 +421,13 @@ echo "Copying Standard Modules"
 echo "================================================"
 
 # Copy STD_MODULES.v to the project
-if [[ -f "STD_MODULES.v" ]]; then
+if [[ -f "scripts/STD_MODULES.v" ]]; then
     echo "Copying STD_MODULES.v to sources/rtl/..."
-    cp "STD_MODULES.v" "$PROJECT_NAME/sources/rtl/"
+    cp "scripts/STD_MODULES.v" "$PROJECT_NAME/sources/rtl/"
     echo "STD_MODULES.v copied successfully"
     echo "   Available modules: synchronizer, edge_detector, LED_logic, spi_interface_debounce"
 else
-    echo "WARNING: STD_MODULES.v not found in current directory"
+    echo "WARNING: scripts/STD_MODULES.v not found"
     echo "   Standard modules will not be available in this project"
 fi
 

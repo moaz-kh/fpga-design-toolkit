@@ -205,48 +205,67 @@ make list-modules RTL_DIR=custom_rtl TB_DIR=custom_tb
 
 ## Architecture and Code Structure
 
+### Repository Structure
+
+```
+fpga-design-toolkit/
+├── initiate_proj.sh          # User entry point - project creation
+├── install_fpga_tools.sh     # User entry point - tool installation
+├── README.md
+├── CLAUDE.md
+└── scripts/                  # Internal scripts & templates
+    ├── create_oss_project.sh
+    ├── create_quartus_project.sh
+    ├── install_docker.sh
+    ├── install_quartus_docker.sh
+    ├── setup-usb-fpga.sh
+    ├── Makefile.oss
+    ├── Makefile.quartus
+    └── STD_MODULES.v
+```
+
 ### Core Components
 
 1. **initiate_proj.sh** - Main entry point wrapper script:
    - Interactive menu to choose toolchain (OSS or Quartus)
-   - Calls appropriate project creation script based on user choice
+   - Calls appropriate project creation script from `scripts/` directory
    - Unified user experience for both toolchains
 
-2. **create_oss_project.sh** - Open-source project creation script:
+2. **scripts/create_oss_project.sh** - Open-source project creation script:
    - Creates complete directory structure for OSS flow
    - Copies standard modules (STD_MODULES.v) to each project
    - Generates example 8-bit adder with comprehensive testbench
    - Sets up constraint files for iCE40
-   - Uses Makefile.oss template
+   - Uses scripts/Makefile.oss template
 
-3. **create_quartus_project.sh** - Quartus project creation script:
+3. **scripts/create_quartus_project.sh** - Quartus project creation script:
    - Creates Quartus-specific directory structure
    - Supports multiple boards (TEI0010, DE10-Lite, DE2-115, DE10-Standard)
    - Generates .qpf, .qsf with pin assignments and timing constraints
-   - Creates customized Makefile from Makefile.quartus template
+   - Creates customized Makefile from scripts/Makefile.quartus template
    - RTL template with board-specific LED blinker example
 
-4. **Makefile.oss** - OSS toolchain Makefile template:
+4. **scripts/Makefile.oss** - OSS toolchain Makefile template:
    - Family-based FPGA architecture (iCE40, ECP5)
    - Auto-detection of available EDA tools
    - Complete simulation to bitstream workflow
    - Runtime parameter override system (conditional assignment with `?=`)
    - Module discovery (`list-modules` target)
 
-5. **Makefile.quartus** - Quartus toolchain Makefile template:
+5. **scripts/Makefile.quartus** - Quartus toolchain Makefile template:
    - Docker-based Quartus Prime Lite workflow
    - Auto-detection of project and programming files
    - Automatic USB setup prompts for WSL2
    - SRAM and Flash programming support
    - GUI support and comprehensive reporting
 
-6. **setup-usb-fpga.sh** - WSL2 USB passthrough automation:
+6. **scripts/setup-usb-fpga.sh** - WSL2 USB passthrough automation:
    - Interactive USB device detection and binding
    - Automatic usbipd-win setup verification
    - Hardware ID-based device attachment
    - FPGA detection verification
 
-7. **STD_MODULES.v** - Standard Verilog modules library:
+7. **scripts/STD_MODULES.v** - Standard Verilog modules library:
    - `synchronizer` - Clock domain crossing with parameterizable width
    - `edge_detector` - Rising/falling edge detection with optional sync
    - `LED_logic` - Configurable LED blinking controller

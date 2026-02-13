@@ -35,10 +35,10 @@ while true; do
             echo -e "${GREEN}[INFO]${NC} Selected: Open-source FPGA tools"
             echo -e "${BLUE}[INFO]${NC} Launching create_oss_project.sh..."
             echo ""
-            if [ -x "./create_oss_project.sh" ]; then
-                ./create_oss_project.sh
+            if [ -x "./scripts/create_oss_project.sh" ]; then
+                ./scripts/create_oss_project.sh
             else
-                echo "ERROR: create_oss_project.sh not found or not executable"
+                echo "ERROR: scripts/create_oss_project.sh not found or not executable"
                 exit 1
             fi
             break
@@ -47,10 +47,10 @@ while true; do
             echo -e "${GREEN}[INFO]${NC} Selected: Intel Quartus Prime Lite"
             echo -e "${BLUE}[INFO]${NC} Launching create_quartus_project.sh..."
             echo ""
-            if [ -x "./create_quartus_project.sh" ]; then
-                ./create_quartus_project.sh
+            if [ -x "./scripts/create_quartus_project.sh" ]; then
+                ./scripts/create_quartus_project.sh
             else
-                echo "ERROR: create_quartus_project.sh not found or not executable"
+                echo "ERROR: scripts/create_quartus_project.sh not found or not executable"
                 exit 1
             fi
             break

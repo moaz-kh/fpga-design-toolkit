@@ -325,7 +325,7 @@ If you're using WSL2, FPGA programming requires USB passthrough. The toolkit mak
 make quartus-prog
 
 # Or run the setup script directly
-./setup-usb-fpga.sh
+./scripts/setup-usb-fpga.sh
 ```
 
 When `make quartus-prog` doesn't detect an FPGA, it automatically:
@@ -470,7 +470,7 @@ make quartus-prog
 lsusb | grep -i "blaster\|ftdi\|altera"
 
 # Run USB setup manually
-./setup-usb-fpga.sh
+./scripts/setup-usb-fpga.sh
 
 # Verify detection
 make quartus-detect
@@ -571,7 +571,7 @@ docker pull raetro/quartus:21.1
 
 **Error: "No device detected"**
 - For WSL2: Run `make quartus-prog` and accept USB setup offer
-- Or manually: `./setup-usb-fpga.sh`
+- Or manually: `./scripts/setup-usb-fpga.sh`
 - Check `lsusb` output
 
 **Error: "Device mismatch"**

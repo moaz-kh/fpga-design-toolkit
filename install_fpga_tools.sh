@@ -11,7 +11,6 @@ set -euo pipefail
 
 # Configuration
 readonly WORKSPACE_DIR="$HOME/fpga_workspace"
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # OSS CAD Suite version configuration
 # Updated Oct 2025: Auto-fetch latest version from GitHub instead of hardcoded date
@@ -610,16 +609,16 @@ cleanup_bashrc() {
 install_docker_engine() {
     log_info "Installing Docker engine..."
 
-    if [ ! -f "$SCRIPT_DIR/install_docker.sh" ]; then
-        log_error "install_docker.sh not found in $SCRIPT_DIR"
-        log_error "Cannot install Docker without the installation script"
+    if [ ! -f "scripts/install_docker.sh" ]; then
+        log_error "scripts/install_docker.sh not found"
+        log_error "Please run this script from the fpga-design-toolkit root directory"
         exit 1
     fi
 
-    log_info "Running: $SCRIPT_DIR/install_docker.sh"
+    log_info "Running: scripts/install_docker.sh"
     echo ""
 
-    if bash "$SCRIPT_DIR/install_docker.sh"; then
+    if bash "scripts/install_docker.sh"; then
         log_info "Docker installation completed successfully"
         return 0
     else
@@ -632,16 +631,16 @@ install_docker_engine() {
 install_quartus_docker() {
     log_info "Installing Quartus Prime Lite Docker..."
 
-    if [ ! -f "$SCRIPT_DIR/install_quartus_docker.sh" ]; then
-        log_error "install_quartus_docker.sh not found in $SCRIPT_DIR"
-        log_error "Cannot install Quartus Docker without the installation script"
+    if [ ! -f "scripts/install_quartus_docker.sh" ]; then
+        log_error "scripts/install_quartus_docker.sh not found"
+        log_error "Please run this script from the fpga-design-toolkit root directory"
         exit 1
     fi
 
-    log_info "Running: $SCRIPT_DIR/install_quartus_docker.sh"
+    log_info "Running: scripts/install_quartus_docker.sh"
     echo ""
 
-    if bash "$SCRIPT_DIR/install_quartus_docker.sh"; then
+    if bash "scripts/install_quartus_docker.sh"; then
         log_info "Quartus Docker installation completed successfully"
         return 0
     else
@@ -654,11 +653,11 @@ install_quartus_docker() {
 cleanup_quartus_docker() {
     log_info "Cleaning up Quartus Docker..."
 
-    if [ -f "$SCRIPT_DIR/install_quartus_docker.sh" ]; then
-        log_info "Running: $SCRIPT_DIR/install_quartus_docker.sh --cleanup"
-        bash "$SCRIPT_DIR/install_quartus_docker.sh" --cleanup
+    if [ -f "scripts/install_quartus_docker.sh" ]; then
+        log_info "Running: scripts/install_quartus_docker.sh --cleanup"
+        bash "scripts/install_quartus_docker.sh" --cleanup
     else
-        log_warn "install_quartus_docker.sh not found, skipping Quartus cleanup"
+        log_warn "scripts/install_quartus_docker.sh not found, skipping Quartus cleanup"
     fi
 }
 
@@ -666,11 +665,11 @@ cleanup_quartus_docker() {
 cleanup_docker_engine() {
     log_info "Cleaning up Docker engine..."
 
-    if [ -f "$SCRIPT_DIR/install_docker.sh" ]; then
-        log_info "Running: $SCRIPT_DIR/install_docker.sh --cleanup"
-        bash "$SCRIPT_DIR/install_docker.sh" --cleanup
+    if [ -f "scripts/install_docker.sh" ]; then
+        log_info "Running: scripts/install_docker.sh --cleanup"
+        bash "scripts/install_docker.sh" --cleanup
     else
-        log_warn "install_docker.sh not found, skipping Docker cleanup"
+        log_warn "scripts/install_docker.sh not found, skipping Docker cleanup"
     fi
 }
 
