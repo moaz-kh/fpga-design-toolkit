@@ -10,7 +10,7 @@
 set -euo pipefail
 
 # Configuration
-readonly WORKSPACE_DIR="$HOME/fpga_workspace"
+readonly WORKSPACE_DIR="$HOME/.fpga-tool-kit_OSS_tools"
 
 # OSS CAD Suite version configuration
 # Updated Oct 2025: Auto-fetch latest version from GitHub instead of hardcoded date
@@ -219,19 +219,22 @@ fetch_latest_oss_cad_version() {
 setup_oss_cad_version() {
     # If version not set by user, fetch latest from GitHub
     if [[ -z "$OSS_CAD_VERSION" ]]; then
-        OSS_CAD_VERSION=$(fetch_latest_oss_cad_version)
+        OSS_CAD_VERSION=$(fetch_latest_oss_cad_version) || true
     else
         log_info "Using user-specified OSS CAD Suite version: $OSS_CAD_VERSION"
     fi
 
-    # Convert YYYY-MM-DD to YYYYMMDD for filename
-    local version_compact="${OSS_CAD_VERSION//-/}"
+    # If version fetch failed, URLs stay empty — handled by install_oss_cad_suite
+    if [[ -n "$OSS_CAD_VERSION" ]]; then
+        # Convert YYYY-MM-DD to YYYYMMDD for filename
+        local version_compact="${OSS_CAD_VERSION//-/}"
 
-    # Construct filename and download URL
-    OSS_CAD_FILE="oss-cad-suite-linux-x64-${version_compact}.tgz"
-    OSS_CAD_URL="https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_VERSION}/${OSS_CAD_FILE}"
+        # Construct filename and download URL
+        OSS_CAD_FILE="oss-cad-suite-linux-x64-${version_compact}.tgz"
+        OSS_CAD_URL="https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_VERSION}/${OSS_CAD_FILE}"
 
-    log_info "Download URL: $OSS_CAD_URL"
+        log_info "Download URL: $OSS_CAD_URL"
+    fi
 }
 
 # Basic checks - detect WSL2 or native Linux
@@ -310,10 +313,115 @@ install_oss_cad_suite() {
         return 0
     fi
 
-    # Check if file already exists (from previous download attempt)
-    if [ ! -f "$OSS_CAD_FILE" ]; then
-        log_info "Downloading OSS CAD Suite $OSS_CAD_VERSION (this may take 5-15 minutes)..."
-        log_info "File size: ~1.5GB"
+    local releases_page="https://github.com/YosysHQ/oss-cad-suite-build/releases"
+
+    # Check for any locally available .tgz files before downloading
+    local -a local_files=()
+    while IFS= read -r f; do
+        local_files+=("$f")
+    done < <(ls -1 oss-cad-suite-linux-x64-*.tgz 2>/dev/null | sort -r)
+
+    if [[ ${#local_files[@]} -gt 0 ]]; then
+        echo ""
+        echo "========================================"
+        echo "Local OSS CAD Suite file(s) found"
+        echo "========================================"
+        echo ""
+
+        local i=1
+        for f in "${local_files[@]}"; do
+            local fver fsize latest_tag=""
+            fver=$(echo "$f" | grep -oP '\d{8}' | sed 's/\(.\{4\}\)\(.\{2\}\)/\1-\2-/')
+            fsize=$(du -h "$f" | cut -f1)
+            if [[ -n "$OSS_CAD_VERSION" && "$fver" == "$OSS_CAD_VERSION" ]]; then
+                latest_tag=" [latest]"
+            fi
+            echo "  $i) $f  (version: $fver, size: $fsize)$latest_tag"
+            ((i++))
+        done
+        echo "  $i) Skip - download a new version instead"
+        echo ""
+        read -p "Choose [1-$i]: " -r local_choice
+
+        if [[ "$local_choice" =~ ^[0-9]+$ ]] && (( local_choice >= 1 && local_choice < i )); then
+            OSS_CAD_FILE="${local_files[$((local_choice - 1))]}"
+            log_info "Using local file: $OSS_CAD_FILE"
+        else
+            # User chose to skip — clear OSS_CAD_FILE and force download prompt
+            OSS_CAD_FILE=""
+            local skipped_local=true
+        fi
+    fi
+
+    # If version fetch failed and no local file chosen, prompt manual download
+    if [[ -z "$OSS_CAD_VERSION" && -z "$OSS_CAD_FILE" ]]; then
+        log_warn "Could not determine latest version, falling back to manual download"
+        echo ""
+        echo "========================================"
+        echo "Manual Download Required"
+        echo "========================================"
+        echo ""
+        echo "Please download OSS CAD Suite manually:"
+        echo ""
+        echo "1. Open the releases page in your browser:"
+        echo "   $releases_page"
+        echo ""
+        echo "2. Download the latest linux-x64 .tgz file"
+        echo ""
+        echo "3. Save it to this directory:"
+        echo "   $WORKSPACE_DIR"
+        echo ""
+        echo "4. Re-run this script after downloading"
+        echo ""
+        exit 0
+    fi
+
+    # Reconstruct filename if it was cleared (user skipped local files)
+    if [[ -z "$OSS_CAD_FILE" && -n "$OSS_CAD_VERSION" ]]; then
+        local version_compact="${OSS_CAD_VERSION//-/}"
+        OSS_CAD_FILE="oss-cad-suite-linux-x64-${version_compact}.tgz"
+        OSS_CAD_URL="https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_VERSION}/${OSS_CAD_FILE}"
+    fi
+
+    # Show download prompt if file doesn't exist or user explicitly skipped local files
+    if [ ! -f "$OSS_CAD_FILE" ] || [ "${skipped_local:-false}" = true ]; then
+        echo ""
+        echo "========================================"
+        echo "OSS CAD Suite Download (~670MB)"
+        echo "========================================"
+        echo ""
+        echo "How would you like to download OSS CAD Suite?"
+        echo ""
+        echo "  1) Auto-download in terminal (10-30 min depending on connection)"
+        echo "  2) Manual download via browser (usually faster, 3-10 min)"
+        echo ""
+        read -p "Choose [1/2]: " -r download_choice
+
+        # Helper to show manual download instructions and exit
+        show_manual_download() {
+            echo ""
+            echo "Please download OSS CAD Suite manually:"
+            echo ""
+            echo "1. Open the releases page in your browser:"
+            echo "   $releases_page/tag/$OSS_CAD_VERSION"
+            echo ""
+            echo "2. Download this file:"
+            echo "   $OSS_CAD_FILE"
+            echo ""
+            echo "3. Save it to this directory:"
+            echo "   $WORKSPACE_DIR"
+            echo ""
+            echo "4. Re-run this script after downloading"
+            echo ""
+            exit 0
+        }
+
+        if [[ "$download_choice" == "2" ]]; then
+            show_manual_download
+        fi
+
+        log_info "Downloading OSS CAD Suite $OSS_CAD_VERSION..."
+        log_info "File size: ~670MB"
 
         # Try automatic download with wget or curl
         local download_success=false
@@ -336,41 +444,10 @@ install_oss_cad_suite() {
             fi
         fi
 
-        # Fallback to manual download if automatic failed
+        # If automatic download failed, show manual fallback
         if [ "$download_success" = false ]; then
             log_warn "Automatic download failed, falling back to manual download"
-            echo ""
-            echo "========================================"
-            echo "Manual Download Required"
-            echo "========================================"
-            echo ""
-            echo "Please download OSS CAD Suite manually:"
-            echo ""
-            echo "1. Open this link in your browser:"
-            echo "   $OSS_CAD_URL"
-            echo ""
-            echo "2. Save the file to this directory:"
-            echo "   $WORKSPACE_DIR"
-            echo ""
-            echo "3. The file should be named:"
-            echo "   $OSS_CAD_FILE"
-            echo ""
-            echo "4. Come back here and confirm when download is complete"
-            echo ""
-
-            read -p "Have you downloaded the file? [yes/no]: " -r REPLY
-
-            if ! is_yes "$REPLY"; then
-                echo "Download cancelled. Please download manually and re-run this script."
-                exit 0
-            fi
-
-            # Check again if file exists
-            if [ ! -f "$OSS_CAD_FILE" ]; then
-                log_error "File $OSS_CAD_FILE not found in $WORKSPACE_DIR"
-                log_error "Please ensure you downloaded the correct file to the correct location"
-                exit 1
-            fi
+            show_manual_download
         fi
     else
         log_info "Found existing OSS CAD Suite file, using it"
@@ -401,7 +478,7 @@ install_oss_cad_suite() {
     fi
     
     # Add to PATH
-    local bashrc_line='export PATH="$HOME/fpga_workspace/oss-cad-suite/bin:$PATH"'
+    local bashrc_line='export PATH="$HOME/.fpga-tool-kit_OSS_tools/oss-cad-suite/bin:$PATH"'
     if ! grep -q "oss-cad-suite" ~/.bashrc; then
         echo "" >> ~/.bashrc
         echo "# OSS CAD Suite for FPGA development" >> ~/.bashrc
@@ -437,7 +514,7 @@ protect_installation() {
     # Make the entire oss-cad-suite directory and contents read-only
     chmod -R a-w "$WORKSPACE_DIR/oss-cad-suite"
     
-    # Make the parent directory (fpga_workspace) read-only to prevent renaming/removal
+    # Make the parent directory (.fpga-tool-kit_OSS_tools) read-only to prevent renaming/removal
     chmod a-w "$WORKSPACE_DIR"
     
     # Optional: Make symlink immutable (if chattr is available)
@@ -684,7 +761,7 @@ show_installation_menu() {
     echo ""
     echo "1) Open-source FPGA tools (OSS CAD Suite, Icarus Verilog, GTKWave)"
     echo "   - Complete open-source toolchain for iCE40 and other FPGAs"
-    echo "   - No license required, ~1.5GB download"
+    echo "   - No license required, ~0.5 GB download"
     echo ""
     echo "2) Quartus Prime Lite Docker (includes Docker)"
     echo "   - Intel Quartus in Docker container"
@@ -838,7 +915,7 @@ install_oss_tools() {
     echo "- Verilator (high-performance simulation)"
     echo "- Git LFS for large file handling"
     echo ""
-    echo "OSS CAD Suite will be automatically downloaded (~1.5GB)"
+    echo "OSS CAD Suite will be automatically downloaded (~0.5GB)"
     echo "Installation location: $WORKSPACE_DIR"
     echo ""
 

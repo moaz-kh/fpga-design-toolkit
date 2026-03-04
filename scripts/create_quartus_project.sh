@@ -57,6 +57,28 @@ show_usage() {
     echo "  $0 --board de10-lite     # Create DE10-Lite project"
 }
 
+# Pre-check: verify Docker environment is ready
+check_docker_ready() {
+    if ! command -v docker &>/dev/null; then
+        print_error "Docker is not installed. Run: ./install_fpga_tools.sh (select 'quartus' or 'all')"
+        exit 1
+    fi
+
+    if ! docker info &>/dev/null; then
+        if grep -qi microsoft /proc/version 2>/dev/null; then
+            print_error "Docker daemon is not running. Start it with: sudo service docker start"
+        else
+            print_error "Docker daemon is not running. Start it with: sudo systemctl start docker"
+        fi
+        exit 1
+    fi
+
+    if [[ -z "$(docker images raetro/quartus --format '{{.Repository}}')" ]]; then
+        print_error "Quartus Docker image not found. Pull it with: docker pull raetro/quartus:21.1"
+        exit 1
+    fi
+}
+
 # Parse command line arguments
 BOARD_TYPE="$DEFAULT_BOARD"
 
@@ -92,6 +114,9 @@ echo "================================================"
 echo "Quartus Native Project Initialization"
 echo "================================================"
 echo "Using Quartus Prime's native project creation"
+
+# Verify Docker environment before prompting for project details
+check_docker_ready
 
 # Get project name with validation
 while true; do
