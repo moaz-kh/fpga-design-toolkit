@@ -1,7 +1,7 @@
 #!/bin/bash
 # Digital Design Project Initialization Script
 # Enhanced with simulation capabilities and auto-example generation
-# Usage: bash initiate_proj_script.sh
+# Usage: bash create_oss_project.sh
 
 set -e  # Exit on any error
 

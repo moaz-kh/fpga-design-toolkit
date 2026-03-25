@@ -64,10 +64,10 @@ source ~/.bashrc
 **For Open-Source Flow:**
 ```bash
 # Check synthesis log
-cat backend/synth.log
+cat backend/reports/*_ice40_synth.log
 
 # Check timing report
-cat backend/timing.rpt
+cat backend/reports/*_ice40_timing.rpt
 ```
 
 **For Quartus Flow:**
@@ -98,7 +98,7 @@ make update_list
 make sim VERBOSE=1
 
 # Check simulation log
-cat sim/logs/sim.log
+cat sim/logs/simulation.log
 
 # Verify testbench
 make list-modules

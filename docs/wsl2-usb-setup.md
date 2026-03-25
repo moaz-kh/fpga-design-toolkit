@@ -1,6 +1,10 @@
 # USB Setup for FPGA Programming (WSL2)
 
-If you're using WSL2, FPGA programming requires USB passthrough. The toolkit makes this easy.
+If you're using WSL2, FPGA programming requires two things:
+1. **Programming tools installed inside WSL2** — handled by `./install_fpga_tools.sh`
+2. **USB passthrough from Windows to WSL2** — covered below
+
+The toolkit makes the USB passthrough easy.
 
 ## Automatic Setup (Recommended)
 
