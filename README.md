@@ -11,9 +11,10 @@ Whether you're learning digital design, prototyping a new idea, or building prod
 ✅ **Instant project setup** - Complete FPGA project structure in one command
 ✅ **Flexible toolchain options** - Choose open-source tools, Intel Quartus in Docker, or both!
 ✅ **Ready-to-use modules** - Synchronizers, edge detectors, SPI debounce, LED controllers
-✅ **Complete simulation workflow** - Icarus Verilog + GTKWave integration
+✅ **Verilog & VHDL support** - Choose your HDL language at project creation time
+✅ **Complete simulation workflow** - Icarus Verilog + GHDL + GTKWave integration
 ✅ **Full FPGA flow** - Synthesis → Place & Route → Bitstream → Programming
-✅ **Working examples** - 8-bit adder with 600+ test cases  
+✅ **Working examples** - 8-bit adder with targeted self-checking testbench
 
 ## Quick Start
 
@@ -38,6 +39,7 @@ chmod +x install_fpga_tools.sh
 # Interactive menu appears - choose your toolchain:
 # 1) Open-source tools (iCE40, ECP5)
 # 2) Intel Quartus (MAX 10, Cyclone)
+# Then choose your HDL language: Verilog/SystemVerilog or VHDL
 ```
 
 ### 3. Test Everything Works
@@ -103,9 +105,9 @@ Professional GTKWave integration with session management:
 - **Quick workflow** - `make sim-waves` for simulation + waveform viewing
 
 ### 📚 Standard Modules Library
-Ready-to-use Verilog modules included in every project:
+Ready-to-use modules included in every project (Verilog and VHDL):
 - **synchronizer** - Clock domain crossing
-- **edge_detector** - Rising/falling edge detection  
+- **edge_detector** - Rising/falling edge detection
 - **LED_logic** - Configurable LED controller
 - **spi_interface_debounce** - Clean SPI signal handling
 
@@ -129,9 +131,9 @@ Ready-to-use Verilog modules included in every project:
 
 ### 🧪 Example Projects
 Auto-generated 8-bit adder with:
-- Complete testbench (600+ test cases)
+- Verilog and VHDL versions
+- Focused self-checking testbench (10 targeted cases)
 - iCE40 constraint files
-- Self-checking verification
 - Ready for hardware implementation
 
 ## Supported Tools & Toolchains
@@ -139,8 +141,8 @@ Auto-generated 8-bit adder with:
 The toolkit supports multiple FPGA toolchains - choose the one that fits your needs:
 
 ### 🌟 Open-Source Toolchain
-**Simulation**: Icarus Verilog, GTKWave, Verilator
-**Synthesis**: Yosys
+**Simulation**: Icarus Verilog (Verilog/SV), GHDL (VHDL), GTKWave, Verilator
+**Synthesis**: Yosys (with ghdl-yosys-plugin for VHDL)
 **Place & Route**: NextPNR (iCE40, ECP5)
 **Programming**: iceprog, openFPGALoader
 **Package Manager**: OSS CAD Suite *(auto-downloaded from [YosysHQ](https://github.com/YosysHQ/oss-cad-suite-build))*

@@ -10,9 +10,9 @@ echo "Digital Design Project Initialization"
 echo "================================================"
 echo "Welcome to the enhanced FPGA project setup wizard!"
 
-# Check if Makefile.oss exists
-if [[ ! -f "scripts/Makefile.oss" ]]; then
-    echo "ERROR: scripts/Makefile.oss not found!"
+# Check if Makefile templates exist
+if [[ ! -f "scripts/Makefile.oss.v" ]] && [[ ! -f "scripts/Makefile.oss.vhd" ]]; then
+    echo "ERROR: Makefile templates not found in scripts/!"
     echo "Please run this script from the fpga-design-toolkit root directory."
     exit 1
 fi
@@ -66,6 +66,20 @@ if [[ $REPLY =~ ^[Nn]$ ]]; then
     echo "Project creation cancelled."
     exit 0
 fi
+
+echo
+echo "================================================"
+echo "Select HDL Language"
+echo "================================================"
+echo "  1) Verilog / SystemVerilog  (default)"
+echo "  2) VHDL"
+echo
+read -p "Choice [1/2, default=1]: " LANG_CHOICE
+case "${LANG_CHOICE:-1}" in
+    2) HDL_LANG="vhdl"    ;;
+    *) HDL_LANG="verilog" ;;
+esac
+echo "Language: $HDL_LANG"
 
 echo
 echo "================================================"
@@ -132,15 +146,21 @@ echo "================================================"
 echo "Creating Template Files"
 echo "================================================"
 
-# Create enhanced Makefile from template
-echo "Creating enhanced Makefile from template..."
-if [[ -f "scripts/Makefile.oss" ]]; then
-    # Copy template and replace placeholder
-    sed "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" "scripts/Makefile.oss" > "$PROJECT_NAME/Makefile"
-    echo "Makefile created successfully"
+echo "Creating Makefile from template..."
+if [[ "$HDL_LANG" == "vhdl" ]]; then
+    if [[ -f "scripts/Makefile.oss.vhd" ]]; then
+        sed "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" "scripts/Makefile.oss.vhd" > "$PROJECT_NAME/Makefile"
+        echo "Makefile (VHDL) created successfully"
+    else
+        echo "ERROR: scripts/Makefile.oss.vhd not found!"; exit 1
+    fi
 else
-    echo "ERROR: scripts/Makefile.oss not found!"
-    exit 1
+    if [[ -f "scripts/Makefile.oss.v" ]]; then
+        sed "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" "scripts/Makefile.oss.v" > "$PROJECT_NAME/Makefile"
+        echo "Makefile (Verilog/SV) created successfully"
+    else
+        echo "ERROR: scripts/Makefile.oss.v not found!"; exit 1
+    fi
 fi
 
 # Create .gitignore
@@ -201,6 +221,9 @@ Thumbs.db
 # === Project Specific ===
 # Auto-generated file lists (should be regenerated)
 sources/rtl_list.f
+
+# GHDL work directory (VHDL projects only)
+sim/ghdl_work/
 EOF
 
 # Create README.md
@@ -420,15 +443,24 @@ echo "================================================"
 echo "Copying Standard Modules"
 echo "================================================"
 
-# Copy STD_MODULES.v to the project
-if [[ -f "scripts/STD_MODULES.v" ]]; then
-    echo "Copying STD_MODULES.v to sources/rtl/..."
-    cp "scripts/STD_MODULES.v" "$PROJECT_NAME/sources/rtl/"
-    echo "STD_MODULES.v copied successfully"
-    echo "   Available modules: synchronizer, edge_detector, LED_logic, spi_interface_debounce"
+if [[ "$HDL_LANG" == "vhdl" ]]; then
+    if [[ -f "scripts/examples/STD_MODULES.vhd" ]]; then
+        echo "Copying STD_MODULES.vhd to sources/rtl/..."
+        cp "scripts/examples/STD_MODULES.vhd" "$PROJECT_NAME/sources/rtl/"
+        echo "STD_MODULES.vhd copied successfully"
+        echo "   Available modules: synchronizer, edge_detector, LED_logic, spi_interface_debounce"
+    else
+        echo "WARNING: scripts/examples/STD_MODULES.vhd not found"
+    fi
 else
-    echo "WARNING: scripts/STD_MODULES.v not found"
-    echo "   Standard modules will not be available in this project"
+    if [[ -f "scripts/examples/STD_MODULES.v" ]]; then
+        echo "Copying STD_MODULES.v to sources/rtl/..."
+        cp "scripts/examples/STD_MODULES.v" "$PROJECT_NAME/sources/rtl/"
+        echo "STD_MODULES.v copied successfully"
+        echo "   Available modules: synchronizer, edge_detector, LED_logic, spi_interface_debounce"
+    else
+        echo "WARNING: scripts/examples/STD_MODULES.v not found"
+    fi
 fi
 
 echo
@@ -436,12 +468,18 @@ echo "================================================"
 echo "Auto-Example Generation"
 echo "================================================"
 
-# Ask user if they want example files
 echo "Do you want to create example adder RTL and testbench files?"
-echo "This will create:"
-echo "  • sources/rtl/adder.v        (8-bit ripple carry adder)"
-echo "  • sources/tb/adder_tb.v      (comprehensive testbench)"
-echo "  • sources/constraints/adder.pcf (iCE40 constraint file)"
+if [[ "$HDL_LANG" == "vhdl" ]]; then
+    echo "This will create:"
+    echo "  • sources/rtl/adder.vhd         (8-bit adder)"
+    echo "  • sources/tb/adder_tb.vhd        (comprehensive testbench)"
+    echo "  • sources/constraints/adder.pcf  (iCE40 constraint file)"
+else
+    echo "This will create:"
+    echo "  • sources/rtl/adder.v            (8-bit ripple carry adder)"
+    echo "  • sources/tb/adder_tb.v          (comprehensive testbench)"
+    echo "  • sources/constraints/adder.pcf  (iCE40 constraint file)"
+fi
 echo
 read -p "Create example files? [Y/n]: " -n 1 -r
 echo
@@ -449,254 +487,40 @@ echo
 if [[ ! $REPLY =~ ^[Nn]$ ]]; then
     echo
     echo "Creating example adder files..."
-    
-    # Create iCE40 constraint file
-    echo "Creating adder.pcf constraint file..."
-    
-    cat > "$PROJECT_NAME/sources/constraints/adder.pcf" << 'EOF'
-# iCE40 PCF Constraints for 8-bit Adder
-# Target: iCE40UP5K-SG48 package
 
-# =============================================================================
-# TIMING CONSTRAINTS
-# =============================================================================
+    if [[ "$HDL_LANG" == "vhdl" ]]; then
+        cp "scripts/examples/adder/adder.vhd"    "$PROJECT_NAME/sources/rtl/"
+        cp "scripts/examples/adder/adder_tb.vhd" "$PROJECT_NAME/sources/tb/"
+        cp "scripts/examples/adder/adder.pcf"    "$PROJECT_NAME/sources/constraints/"
+        echo "Created: sources/rtl/adder.vhd"
+        echo "Created: sources/tb/adder_tb.vhd"
+        echo "Created: sources/constraints/adder.pcf"
+    else
+        cp "scripts/examples/adder/adder.v"    "$PROJECT_NAME/sources/rtl/"
+        cp "scripts/examples/adder/adder_tb.v" "$PROJECT_NAME/sources/tb/"
+        cp "scripts/examples/adder/adder.pcf"  "$PROJECT_NAME/sources/constraints/"
+        echo "Created: sources/rtl/adder.v"
+        echo "Created: sources/tb/adder_tb.v"
+        echo "Created: sources/constraints/adder.pcf"
+    fi
 
-# Primary clock frequency constraint
-# 50 MHz target frequency (conservative timing for adder design)
-# Users can modify this frequency based on their timing requirements
-set_frequency clk 50
-
-# =============================================================================
-# PIN ASSIGNMENTS - iCEBreaker board pinout
-# =============================================================================
-
-# Input operand A[7:0]
-set_io a[0] 4
-set_io a[1] 2
-set_io a[2] 47
-set_io a[3] 45
-set_io a[4] 3
-set_io a[5] 48
-set_io a[6] 46
-set_io a[7] 44
-
-# Input operand B[7:0]
-set_io b[0] 43
-set_io b[1] 38
-set_io b[2] 34
-set_io b[3] 31
-set_io b[4] 42
-set_io b[5] 36
-set_io b[6] 32
-set_io b[7] 28
-
-# Carry input
-set_io cin 20
-
-# Sum output[7:0]
-set_io sum[0] 37
-set_io sum[1] 41
-set_io sum[2] 39
-set_io sum[3] 25
-set_io sum[4] 23
-set_io sum[5] 21
-set_io sum[6] 26
-set_io sum[7] 27
-
-# Carry output
-set_io cout 18
-
-# =============================================================================
-# USAGE NOTES:
-# - Modify set_frequency to match your design requirements
-# - Pin assignments are for iCEBreaker board - modify for your target board
-# - For timing-only analysis, comment out pin assignments and use set_frequency only
-# =============================================================================
-
-EOF
-
-    echo "adder.pcf constraint file created"
-    
-    # Create the adder RTL file
-    echo "Creating adder.v..."
-    cat > "$PROJECT_NAME/sources/rtl/adder.v" << 'EOF'
-// 8-bit Ripple Carry Adder with Carry Out
-// Auto-generated example for digital design project
-
-module adder(
-    input  [7:0] a,      // First operand
-    input  [7:0] b,      // Second operand
-    input        cin,    // Carry input
-    output [7:0] sum,    // Sum output
-    output       cout    // Carry output
-);
-
-    // Internal carry signals
-    wire [6:0] carry;
-
-    // Full adder instances
-    full_adder fa0 (.a(a[0]), .b(b[0]), .cin(cin),     .sum(sum[0]), .cout(carry[0]));
-    full_adder fa1 (.a(a[1]), .b(b[1]), .cin(carry[0]), .sum(sum[1]), .cout(carry[1]));
-    full_adder fa2 (.a(a[2]), .b(b[2]), .cin(carry[1]), .sum(sum[2]), .cout(carry[2]));
-    full_adder fa3 (.a(a[3]), .b(b[3]), .cin(carry[2]), .sum(sum[3]), .cout(carry[3]));
-    full_adder fa4 (.a(a[4]), .b(b[4]), .cin(carry[3]), .sum(sum[4]), .cout(carry[4]));
-    full_adder fa5 (.a(a[5]), .b(b[5]), .cin(carry[4]), .sum(sum[5]), .cout(carry[5]));
-    full_adder fa6 (.a(a[6]), .b(b[6]), .cin(carry[5]), .sum(sum[6]), .cout(carry[6]));
-    full_adder fa7 (.a(a[7]), .b(b[7]), .cin(carry[6]), .sum(sum[7]), .cout(cout));
-
-endmodule
-
-// Full Adder Module
-module full_adder(
-    input  a, b, cin,
-    output sum, cout
-);
-    assign sum = a ^ b ^ cin;
-    assign cout = (a & b) | (cin & (a ^ b));
-endmodule
-EOF
-
-    # Create the testbench file
-    echo "Creating adder_tb.v..."
-    cat > "$PROJECT_NAME/sources/tb/adder_tb.v" << 'EOF'
-// Testbench for 8-bit Adder
-// Auto-generated comprehensive test suite
-
-module adder_tb;
-
-    // Testbench signals
-    reg  [7:0] a, b;
-    reg        cin;
-    wire [7:0] sum;
-    wire       cout;
-
-    // Expected results for verification
-    reg  [8:0] expected;
-    integer i, j, k;
-    integer pass_count, fail_count;
-
-    // Instantiate the adder
-    adder dut (
-        .a(a),
-        .b(b),
-        .cin(cin),
-        .sum(sum),
-        .cout(cout)
-    );
-
-    // Test stimulus
-    initial begin
-        // Initialize waveform dump
-        $dumpfile("sim/waves/adder_tb.vcd");
-        $dumpvars(0, adder_tb);
-
-        // Initialize variables
-        a = 0;
-        b = 0;
-        cin = 0;
-        pass_count = 0;
-        fail_count = 0;
-
-        $display("=== Adder Testbench Started ===");
-        $display("Time\t\ta\tb\tcin\tsum\tcout\texpected\tstatus");
-        $display("------------------------------------------------------------");
-
-        // Test 1: Basic addition without carry
-        #10;
-        a = 8'h0F; b = 8'h10; cin = 0;
-        #10 check_result("Basic Add");
-
-        // Test 2: Addition with carry input
-        a = 8'h0F; b = 8'h10; cin = 1;
-        #10 check_result("Add with Cin");
-
-        // Test 3: Maximum values
-        a = 8'hFF; b = 8'hFF; cin = 1;
-        #10 check_result("Max Values");
-
-        // Test 4: Zero addition
-        a = 8'h00; b = 8'h00; cin = 0;
-        #10 check_result("Zero Add");
-
-        // Test 5: Overflow condition
-        a = 8'h80; b = 8'h80; cin = 0;
-        #10 check_result("Overflow");
-
-        // Test 6: Random comprehensive testing
-        $display("--- Starting random tests ---");
-        for (i = 0; i < 100; i = i + 1) begin
-            a = $random;
-            b = $random;
-            cin = $random & 1;
-            #10 check_result("Random");
-        end
-
-        // Test 7: Exhaustive corner cases
-        $display("--- Testing corner cases ---");
-        for (i = 0; i < 2; i = i + 1) begin
-            for (j = 0; j < 256; j = j + 1) begin
-                a = j;
-                b = (i == 0) ? 8'h00 : 8'hFF;
-                cin = i;
-                #1 check_result("Corner");
-            end
-        end
-
-        // Display final results
-        $display("=== Test Summary ===");
-        $display("Total Passed: %0d", pass_count);
-        $display("Total Failed: %0d", fail_count);
-        $display("Success Rate: %0.1f%%", (pass_count * 100.0) / (pass_count + fail_count));
-
-        if (fail_count == 0) begin
-            $display("ALL TESTS PASSED!");
-        end else begin
-            $display("SOME TESTS FAILED!");
-        end
-
-        $display("=== Testbench Complete ===");
-        $finish;
-    end
-
-    // Task to check results
-    task check_result;
-        input [80*8-1:0] test_name;
-        begin
-            expected = a + b + cin;
-            if ({cout, sum} == expected) begin
-                $display("%0t\t%h\t%h\t%b\t%h\t%b\t%h\t\tPASS - %s", 
-                    $time, a, b, cin, sum, cout, expected, test_name);
-                pass_count = pass_count + 1;
-            end else begin
-                $display("%0t\t%h\t%h\t%b\t%h\t%b\t%h\t\tFAIL - %s", 
-                    $time, a, b, cin, sum, cout, expected, test_name);
-                $display("ERROR: Expected {cout,sum} = %h, Got {cout,sum} = %h", 
-                    expected, {cout, sum});
-                fail_count = fail_count + 1;
-            end
-        end
-    endtask
-
-endmodule
-EOF
-
-    echo "Example files created successfully!"
-    echo "Created: sources/rtl/adder.v"
-    echo "Created: sources/tb/adder_tb.v"
-    echo "Created: sources/constraints/adder.pcf"
-    
-    # Auto-update the file list
     echo "Updating file list..."
     cd "$PROJECT_NAME"
     make update_list > /dev/null 2>&1
     cd ..
-    
+
     echo
     echo "Ready to test! Try these commands:"
     echo "  cd $PROJECT_NAME"
-    echo "  make sim-waves      # Run simulation and view waveforms"
-    echo "  make quick-test     # Full automated test"
-    
+    if [[ "$HDL_LANG" == "vhdl" ]]; then
+        echo "  make update_list    # Refresh file list"
+        echo "  make sim            # Run GHDL simulation"
+        echo "  make waves          # View waveforms in GTKWave"
+    else
+        echo "  make sim-waves      # Run simulation and view waveforms"
+        echo "  make quick-test     # Full automated test"
+    fi
+
     EXAMPLE_CREATED=true
 else
     echo "Skipping example file creation."
@@ -713,16 +537,26 @@ echo "Location: $(pwd)/$PROJECT_NAME"
 
 echo
 echo "Included Files:"
-if [[ -f "$PROJECT_NAME/sources/rtl/STD_MODULES.v" ]]; then
-    echo "OK: STD_MODULES.v - Standard utility modules"
+if [[ "$HDL_LANG" == "vhdl" ]]; then
+    if [[ -f "$PROJECT_NAME/sources/rtl/STD_MODULES.vhd" ]]; then
+        echo "OK: STD_MODULES.vhd - Standard utility modules"
+    fi
+    if [[ "$EXAMPLE_CREATED" == "true" ]]; then
+        echo "OK: adder.vhd - Example 8-bit adder"
+        echo "OK: adder_tb.vhd - Comprehensive testbench"
+        echo "OK: adder.pcf - iCE40 constraint file"
+    fi
 else
-    echo "WARNING: STD_MODULES.v - Not available (file not found)"
-fi
-
-if [[ "$EXAMPLE_CREATED" == "true" ]]; then
-    echo "OK: adder.v - Example 8-bit adder"
-    echo "OK: adder_tb.v - Comprehensive testbench"
-    echo "OK: adder.pcf - iCE40 constraint file"
+    if [[ -f "$PROJECT_NAME/sources/rtl/STD_MODULES.v" ]]; then
+        echo "OK: STD_MODULES.v - Standard utility modules"
+    else
+        echo "WARNING: STD_MODULES.v - Not available (file not found)"
+    fi
+    if [[ "$EXAMPLE_CREATED" == "true" ]]; then
+        echo "OK: adder.v - Example 8-bit adder"
+        echo "OK: adder_tb.v - Comprehensive testbench"
+        echo "OK: adder.pcf - iCE40 constraint file"
+    fi
 fi
 
 echo

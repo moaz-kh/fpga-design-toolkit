@@ -563,7 +563,7 @@ verify_installation() {
     export PATH="$WORKSPACE_DIR/oss-cad-suite/bin:$PATH"
     
     # Essential tools (required for basic functionality)
-    local essential_tools=("iverilog" "vvp" "gtkwave" "yosys" "nextpnr-ice40" "icepack")
+    local essential_tools=("iverilog" "vvp" "ghdl" "gtkwave" "yosys" "nextpnr-ice40" "icepack")
     # Optional tools (nice to have)
     local optional_tools=("verilator" "iceprog" "icetime" "openFPGALoader")
     

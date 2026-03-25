@@ -1,25 +1,22 @@
-# Makefile Template for Digital Design Projects
-# Family-based architecture with iCE40 implementation
+# Makefile Template for Digital Design Projects (VHDL)
+# GHDL simulation, ghdl-yosys-plugin synthesis
 
 PROJECT = PROJECT_NAME_PLACEHOLDER
 TOP_MODULE ?= adder
 TESTBENCH ?= adder_tb
 
-# FPGA family configuration - extensible for future families
+# FPGA family configuration
 FPGA_FAMILY ?= ice40
 
-# Family-specific defaults (auto-selected based on family)
 ifeq ($(FPGA_FAMILY),ice40)
     FPGA_DEVICE ?= up5k
     FPGA_PACKAGE ?= sg48
 else
-    # Future families can be added here
-    # ecp5, intel, xilinx, etc.
     FPGA_DEVICE ?= generic
     FPGA_PACKAGE ?= generic
 endif
 
-# Constraint files (family-specific)
+# Constraint files
 PCF_FILE ?= sources/constraints/$(TOP_MODULE).pcf
 LPF_FILE ?= sources/constraints/$(TOP_MODULE).lpf
 XDC_FILE ?= sources/constraints/$(TOP_MODULE).xdc
@@ -31,6 +28,7 @@ SIM_DIR ?= sim
 WAVE_DIR = $(SIM_DIR)/waves
 LOG_DIR = $(SIM_DIR)/logs
 FILELIST ?= sources/rtl_list.f
+GHDL_WORK_DIR = $(SIM_DIR)/ghdl_work
 
 # Backend directories
 SYNTH_DIR = backend/synth
@@ -38,49 +36,32 @@ PNR_DIR = backend/pnr
 BITSTREAM_DIR = backend/bitstream
 REPORTS_DIR = backend/reports
 
-# Tools - auto-detect available tools
-IVERILOG := $(shell command -v iverilog 2> /dev/null)
-VVP := $(shell command -v vvp 2> /dev/null)
-VERILATOR := $(shell command -v verilator 2> /dev/null)
-GTKWAVE := $(shell command -v gtkwave 2> /dev/null)
-YOSYS := $(shell command -v yosys 2> /dev/null)
+# Tools
+GHDL          := $(shell command -v ghdl 2> /dev/null)
+GTKWAVE       := $(shell command -v gtkwave 2> /dev/null)
+YOSYS         := $(shell command -v yosys 2> /dev/null)
 
-# Family-specific tool detection
 NEXTPNR_ICE40 := $(shell command -v nextpnr-ice40 2> /dev/null)
-ICEPACK := $(shell command -v icepack 2> /dev/null)
-ICEPROG := $(shell command -v iceprog 2> /dev/null)
-ICETIME := $(shell command -v icetime 2> /dev/null)
-
-# Future family tools can be added here
-# NEXTPNR_ECP5 := $(shell command -v nextpnr-ecp5 2> /dev/null)
-# ECPPACK := $(shell command -v ecppack 2> /dev/null)
+ICEPACK       := $(shell command -v icepack 2> /dev/null)
+ICEPROG       := $(shell command -v iceprog 2> /dev/null)
+ICETIME       := $(shell command -v icetime 2> /dev/null)
 
 OPENFPGALOADER := $(shell command -v openFPGALoader 2> /dev/null)
 
-# Compiler flags for different targets
-SIM_FLAGS = -D SIMULATION           # Enable simulation features for testbenches
-SYNTH_FLAGS = -D SYNTHESIS          # Define synthesis mode (disable simulation features)
-
 # Simulation files
-SIM_TOP = $(SIM_DIR)/$(TESTBENCH).vvp
-WAVE_FILE = $(WAVE_DIR)/$(TESTBENCH).vcd
-FST_FILE = $(WAVE_DIR)/$(TESTBENCH).fst
+WAVE_FILE    = $(WAVE_DIR)/$(TESTBENCH).vcd
+FST_FILE     = $(WAVE_DIR)/$(TESTBENCH).fst
 SESSION_FILE = $(WAVE_DIR)/$(TESTBENCH).gtkw
 
-# Family-specific output files (extensible naming scheme)
+# Family-specific output files
 ICE40_JSON = $(SYNTH_DIR)/$(PROJECT)_ice40.json
-ICE40_ASC = $(PNR_DIR)/$(PROJECT)_ice40.asc
-ICE40_BIN = $(BITSTREAM_DIR)/$(PROJECT)_ice40.bin
-
-# Future family files can be added here
-# ECP5_JSON = $(SYNTH_DIR)/$(PROJECT)_ecp5.json
-# ECP5_CONFIG = $(PNR_DIR)/$(PROJECT)_ecp5.config
-# ECP5_BIT = $(BITSTREAM_DIR)/$(PROJECT)_ecp5.bit
+ICE40_ASC  = $(PNR_DIR)/$(PROJECT)_ice40.asc
+ICE40_BIN  = $(BITSTREAM_DIR)/$(PROJECT)_ice40.bin
 
 # Default target
 .PHONY: help
 help:
-	@echo "=== $(PROJECT) Build System ==="
+	@echo "=== $(PROJECT) Build System (VHDL) ==="
 	@echo ""
 	@echo "Current Configuration:"
 	@echo "  FPGA_FAMILY=$(FPGA_FAMILY)"
@@ -94,11 +75,11 @@ help:
 	@echo "  check-tools   - Check available tools"
 	@echo "  update_list   - Update rtl_list.f with current source files"
 	@echo "  status        - Show project and tool status"
-	@echo "  list-modules  - List available RTL modules and testbenches"
+	@echo "  list-modules  - List available VHDL entities and testbenches"
 	@echo ""
 	@echo "Runtime configuration (override defaults):"
 	@echo "  TOP_MODULE=name     - Override top module (default: $(TOP_MODULE))"
-	@echo "  TESTBENCH=name      - Override testbench (default: $(TESTBENCH))"  
+	@echo "  TESTBENCH=name      - Override testbench (default: $(TESTBENCH))"
 	@echo "  FPGA_FAMILY=family  - Override FPGA family (default: $(FPGA_FAMILY))"
 	@echo "  FPGA_DEVICE=device  - Override FPGA device (default: $(FPGA_DEVICE))"
 	@echo "  RTL_DIR=path        - Override RTL directory (default: $(RTL_DIR))"
@@ -109,7 +90,7 @@ help:
 	@echo "  make ice40 FPGA_DEVICE=hx8k FPGA_PACKAGE=ct256"
 	@echo ""
 	@echo "Simulation targets:"
-	@echo "  sim           - Run simulation with Icarus Verilog"
+	@echo "  sim           - Run GHDL simulation"
 	@echo "  waves         - View waveforms with GTKWave (loads .gtkw session if available)"
 	@echo "  sim-waves     - Run simulation and open waveforms"
 	@echo "  save-session  - Create template .gtkw session file for current testbench"
@@ -128,7 +109,7 @@ help:
 	@echo "  prog          - Program device with current family bitstream"
 	@echo ""
 	@echo "Family-specific targets:"
-	@echo "  synth-ice40   - Synthesize for Lattice iCE40"
+	@echo "  synth-ice40   - Synthesize for Lattice iCE40 (via ghdl-yosys-plugin)"
 	@echo "  pnr-ice40     - Place and route for iCE40"
 	@echo "  timing-ice40  - iCE40 timing analysis"
 	@echo "  bitstream-ice40 - Generate iCE40 bitstream"
@@ -153,20 +134,16 @@ check-tools:
 	@echo "Current family: $(FPGA_FAMILY)"
 	@echo ""
 	@echo "Simulation Tools:"
-ifndef IVERILOG
-	@echo "  ERROR: Icarus Verilog not found - install with: sudo apt install iverilog"
+ifndef GHDL
+	@echo "  ERROR: GHDL not found - required for VHDL simulation and synthesis"
+	@echo "         Should be bundled with OSS CAD Suite. Check your PATH."
 else
-	@echo "  OK: Icarus Verilog: $(IVERILOG)"
+	@echo "  OK: GHDL: $(GHDL)"
 endif
 ifndef GTKWAVE
 	@echo "  ERROR: GTKWave not found - install with: sudo apt install gtkwave"
 else
 	@echo "  OK: GTKWave: $(GTKWAVE)"
-endif
-ifdef VERILATOR
-	@echo "  OK: Verilator: $(VERILATOR)"
-else
-	@echo "  INFO: Verilator not found - install with: sudo apt install verilator"
 endif
 	@echo ""
 	@echo "Synthesis Tools:"
@@ -206,100 +183,74 @@ ifdef OPENFPGALOADER
 else
 	@echo "  INFO: openFPGALoader not found - universal programmer (optional)"
 endif
-	@echo ""
-	@echo "Future family tools (not implemented yet):"
-	@echo "  INFO: ECP5, Intel, Xilinx tools will be checked when implemented"
 
 # === FILE LIST MANAGEMENT ===
 
 .PHONY: update_list
 update_list:
-	@echo "Updating rtl_list.f with current source files..."
+	@echo "Updating rtl_list.f with current VHDL source files..."
 	@echo "# RTL and Testbench File List" > $(FILELIST)
 	@echo "# Generated by 'make update_list'" >> $(FILELIST)
 	@echo "# Date: $(shell date)" >> $(FILELIST)
 	@echo "# Project: $(PROJECT)" >> $(FILELIST)
 	@echo "" >> $(FILELIST)
 	@echo "# RTL Source Files" >> $(FILELIST)
-	@find $(PWD)/$(RTL_DIR) -name "*.v" -o -name "*.sv" -o -name "*.vhd" -o -name "*.vhdl" | sort >> $(FILELIST) 2>/dev/null || true
+	@find $(PWD)/$(RTL_DIR) -name "*.vhd" -o -name "*.vhdl" | sort >> $(FILELIST) 2>/dev/null || true
 	@echo "" >> $(FILELIST)
 	@echo "# Testbench Files" >> $(FILELIST)
-	@find $(PWD)/$(TB_DIR) -name "*_tb.v" -o -name "*_tb.sv" -o -name "tb_*.v" -o -name "tb_*.sv" | sort >> $(FILELIST) 2>/dev/null || true
+	@find $(PWD)/$(TB_DIR) \( -name "*_tb.vhd" -o -name "*_tb.vhdl" -o -name "tb_*.vhd" -o -name "tb_*.vhdl" \) | sort >> $(FILELIST) 2>/dev/null || true
 	@echo "File list updated: $(FILELIST)"
 	@echo "Found $(shell grep -c '^/' $(FILELIST) 2>/dev/null || echo 0) files"
 
 .PHONY: list-modules
 list-modules:
-	@echo "=== Available RTL Modules ==="
+	@echo "=== Available VHDL Entities ==="
 	@if [ -d "$(RTL_DIR)" ]; then \
-		find $(RTL_DIR) -name "*.v" -o -name "*.sv" | while read file; do \
-			modules=$$(grep -h "^module " "$$file" 2>/dev/null | sed 's/module //' | sed 's/[[:space:]]*([^)]*).*//'); \
-			if [ ! -z "$$modules" ]; then \
+		find $(RTL_DIR) \( -name "*.vhd" -o -name "*.vhdl" \) | while read file; do \
+			entities=$$(grep -i "^entity " "$$file" 2>/dev/null | sed 's/entity //i' | sed 's/ is.*//'); \
+			if [ ! -z "$$entities" ]; then \
 				echo "$$file:"; \
-				echo "$$modules" | sed 's/^/  - /'; \
+				echo "$$entities" | sed 's/^/  - /'; \
 			fi; \
 		done; \
-	else \
-		echo "  No RTL directory found: $(RTL_DIR)"; \
 	fi
 	@echo ""
 	@echo "=== Available Testbenches ==="
 	@if [ -d "$(TB_DIR)" ]; then \
-		find $(TB_DIR) -name "*_tb.v" -o -name "*_tb.sv" -o -name "tb_*.v" -o -name "tb_*.sv" | while read file; do \
-			modules=$$(grep -h "^module " "$$file" 2>/dev/null | sed 's/module //' | sed 's/[[:space:]]*([^)]*).*//'); \
-			if [ ! -z "$$modules" ]; then \
-				echo "$$file:"; \
-				echo "$$modules" | sed 's/^/  - /'; \
-			fi; \
+		find $(TB_DIR) \( -name "*_tb.vhd" -o -name "*_tb.vhdl" -o -name "tb_*.vhd" -o -name "tb_*.vhdl" \) | while read file; do \
+			echo "  $$file"; \
 		done; \
-	else \
-		echo "  No testbench directory found: $(TB_DIR)"; \
 	fi
 
 # === SIMULATION TARGETS ===
 
 .PHONY: sim
-sim: $(SIM_TOP)
-	@if [ -z "$(IVERILOG)" ]; then \
-		echo "ERROR: Icarus Verilog not available. Run 'make check-tools' for installation instructions."; \
-		exit 1; \
+sim:
+	@if [ -z "$(GHDL)" ]; then \
+		echo "ERROR: GHDL not found. Should be bundled in OSS CAD Suite."; exit 1; \
 	fi
+	@if [ ! -s "$(FILELIST)" ] || ! grep -q "^/" "$(FILELIST)"; then \
+		echo "ERROR: No source files in $(FILELIST). Run 'make update_list' first."; exit 1; \
+	fi
+	@mkdir -p $(SIM_DIR) $(WAVE_DIR) $(LOG_DIR) $(GHDL_WORK_DIR)
+	@ALL_VHDL=$$(grep '^/' $(FILELIST) | grep '\.\(vhd\|vhdl\)$$'); \
+	if [ -z "$$ALL_VHDL" ]; then echo "ERROR: No VHDL files in $(FILELIST)"; exit 1; fi; \
+	echo "Analyzing VHDL files..."; \
+	$(GHDL) -a --std=08 --workdir=$(GHDL_WORK_DIR) $$ALL_VHDL
+	@echo "Elaborating $(TESTBENCH)..."
+	@$(GHDL) -e --std=08 --workdir=$(GHDL_WORK_DIR) $(TESTBENCH)
 	@echo "Running simulation..."
-	@mkdir -p $(LOG_DIR)
-	@$(VVP) $(SIM_TOP) | tee $(LOG_DIR)/simulation.log
+	@$(GHDL) -r --std=08 --workdir=$(GHDL_WORK_DIR) $(TESTBENCH) \
+		--vcd=$(WAVE_FILE) 2>&1 | tee $(LOG_DIR)/simulation.log
 	@echo "Simulation complete!"
-	@echo "   Log file: $(LOG_DIR)/simulation.log"
-	@if [ -f "$(WAVE_FILE)" ]; then \
-		echo "   Waveform: $(WAVE_FILE)"; \
-	elif [ -f "$(FST_FILE)" ]; then \
-		echo "   Waveform: $(FST_FILE)"; \
-	fi
+	@echo "   Log: $(LOG_DIR)/simulation.log"
+	@echo "   Waveform: $(WAVE_FILE)"
 	@echo "View waves: make waves"
 	@echo ""
 	@echo "GTKWave Session Tip:"
 	@echo "• First time: Arrange signals manually in GTKWave, then Ctrl+S to save session"
 	@echo "• Future runs: 'make waves' will automatically restore your signal layout!"
 	@echo "• Session file: $(SESSION_FILE)"
-
-$(SIM_TOP): $(FILELIST) $(shell find $(RTL_DIR) $(TB_DIR) -name "*.v" -o -name "*.sv" -o -name "*.vhd" -o -name "*.vhdl" 2>/dev/null)
-	@if [ -z "$(IVERILOG)" ]; then \
-		echo "ERROR: Icarus Verilog not found"; \
-		exit 1; \
-	fi
-	@echo "Compiling simulation..."
-	@mkdir -p $(SIM_DIR) $(WAVE_DIR)
-	@if [ ! -s $(FILELIST) ]; then \
-		echo "WARNING: File list is empty. Run 'make update_list' first."; \
-		exit 1; \
-	fi
-	@if ! grep -q "^/" $(FILELIST); then \
-		echo "WARNING: No source files found in $(FILELIST)"; \
-		echo "TIP: Add your RTL files to $(RTL_DIR)/ and testbenches to $(TB_DIR)/"; \
-		echo "TIP: Then run 'make update_list'"; \
-		exit 1; \
-	fi
-	@$(IVERILOG) -g2009 $(SIM_FLAGS) -f $(FILELIST) -s $(TESTBENCH) -o $(SIM_TOP)
-	@echo "Compilation successful!"
 
 .PHONY: waves
 waves:
@@ -326,9 +277,6 @@ waves:
 	else \
 		echo "ERROR: No waveform files found"; \
 		echo "TIP: Run 'make sim' first to generate waveforms"; \
-		echo "TIP: also make sure that .vcd file exists inside sim/waves"; \
-		echo "TIP: all your .vcd files are listed here :"; \
-		find . -name "*.vcd" -type f | head -1; \
 		exit 1; \
 	fi
 
@@ -388,8 +336,6 @@ bitstream: bitstream-$(FPGA_FAMILY)
 prog: prog-$(FPGA_FAMILY)
 	@echo "Programming complete for $(FPGA_FAMILY) family"
 
-# === FAMILY-SPECIFIC TARGETS ===
-
 # === iCE40 FAMILY IMPLEMENTATION ===
 
 .PHONY: synth-ice40
@@ -399,40 +345,29 @@ synth-ice40: FPGA_PACKAGE=sg48
 synth-ice40: ICE40_JSON=$(SYNTH_DIR)/$(PROJECT)_ice40.json
 synth-ice40:
 ifdef YOSYS
-	@echo "Running iCE40 synthesis for $(FPGA_DEVICE) ($(FPGA_PACKAGE))..."
+	@echo "Running iCE40 VHDL synthesis for $(FPGA_DEVICE) ($(FPGA_PACKAGE))..."
 	@mkdir -p $(SYNTH_DIR) $(REPORTS_DIR)
-	@if [ ! -s $(FILELIST) ]; then \
-		echo "ERROR: File list is empty. Run 'make update_list' first."; \
-		exit 1; \
+	@if [ -z "$(GHDL)" ]; then \
+		echo "ERROR: GHDL not found - required for VHDL synthesis."; exit 1; \
 	fi
-	@echo "Auto-configured: Family=$(FPGA_FAMILY), Device=$(FPGA_DEVICE), Package=$(FPGA_PACKAGE)"
-	@echo "Reading source files and synthesizing..."
-	@echo "# Auto-generated Yosys script for iCE40" > $(SYNTH_DIR)/yosys_script_ice40.ys
-	@sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | while read file; do \
-		case "$$file" in \
-			*.sv) echo "read_verilog -sv $(SYNTH_FLAGS) $$file" ;; \
-			*.v)  echo "read_verilog $(SYNTH_FLAGS) $$file" ;; \
-			*.vhd|*.vhdl) echo "read_vhdl $$file" ;; \
-			*) echo "# Unsupported file type: $$file" ;; \
-		esac; \
-	done >> $(SYNTH_DIR)/yosys_script_ice40.ys
-	@echo "hierarchy -check -top $(TOP_MODULE)" >> $(SYNTH_DIR)/yosys_script_ice40.ys
-	@# Timing constraint information for iCE40 flow
-	@echo ""
-	@echo "=== iCE40 TIMING CONSTRAINT NOTICE ==="
-	@echo "Yosys (synthesis): No timing constraint support - logical synthesis only"
-	@echo "NextPNR (P&R): Timing constraints via PCF file: sources/constraints/$(TOP_MODULE).pcf"
-	@echo "Use 'set_frequency <clock_net> <freq_mhz>' in PCF file for timing constraints"
-	@echo "====================================="
-	@echo ""
-	@echo "synth_ice40 -top $(TOP_MODULE) -json $(ICE40_JSON)" >> $(SYNTH_DIR)/yosys_script_ice40.ys
-	@echo "stat -top $(TOP_MODULE)" >> $(SYNTH_DIR)/yosys_script_ice40.ys
-	@echo "write_verilog $(SYNTH_DIR)/$(PROJECT)_ice40_synth.v" >> $(SYNTH_DIR)/yosys_script_ice40.ys
-	@$(YOSYS) -q -s $(SYNTH_DIR)/yosys_script_ice40.ys 2>&1 | tee $(REPORTS_DIR)/$(PROJECT)_ice40_synth.log
-	@echo "iCE40 synthesis complete!"
+	@if [ ! -s "$(FILELIST)" ] || ! grep -q "^/" "$(FILELIST)"; then \
+		echo "ERROR: File list is empty. Run 'make update_list' first."; exit 1; \
+	fi
+	@VHDL_FILES=$$(sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | \
+		grep '\.\(vhd\|vhdl\)$$' | tr '\n' ' '); \
+	echo "# VHDL synthesis via ghdl-yosys-plugin" > $(SYNTH_DIR)/yosys_script_ice40.ys; \
+	echo "ghdl --std=08 --work=work $$VHDL_FILES -e $(TOP_MODULE)" \
+		>> $(SYNTH_DIR)/yosys_script_ice40.ys; \
+	echo "synth_ice40 -top $(TOP_MODULE) -json $(ICE40_JSON)" \
+		>> $(SYNTH_DIR)/yosys_script_ice40.ys; \
+	echo "stat -top $(TOP_MODULE)" >> $(SYNTH_DIR)/yosys_script_ice40.ys; \
+	echo "write_verilog $(SYNTH_DIR)/$(PROJECT)_ice40_synth.v" \
+		>> $(SYNTH_DIR)/yosys_script_ice40.ys
+	@$(YOSYS) -m ghdl -q -s $(SYNTH_DIR)/yosys_script_ice40.ys \
+		2>&1 | tee $(REPORTS_DIR)/$(PROJECT)_ice40_synth.log
+	@echo "iCE40 VHDL synthesis complete!"
 	@echo "   Device: $(FPGA_DEVICE) ($(FPGA_PACKAGE))"
 	@echo "   JSON: $(ICE40_JSON)"
-	@echo "   Netlist: $(SYNTH_DIR)/$(PROJECT)_ice40_synth.v"
 	@echo "   Log: $(REPORTS_DIR)/$(PROJECT)_ice40_synth.log"
 else
 	@echo "ERROR: Yosys not available. Install with: sudo apt install yosys"
@@ -454,30 +389,18 @@ ifdef NEXTPNR_ICE40
 	fi
 	@echo "Running iCE40 place and route for $(FPGA_DEVICE) ($(FPGA_PACKAGE))..."
 	@mkdir -p $(PNR_DIR) $(REPORTS_DIR)
-	@echo "Auto-configured: Family=$(FPGA_FAMILY), Device=$(FPGA_DEVICE), Package=$(FPGA_PACKAGE)"
 	@echo ""
 	@echo "=== PCF CONSTRAINT CHECK ==="
 	@if [ ! -f "$(PCF_FILE)" ]; then \
-		echo "⚠ WARNING: Constraint file $(PCF_FILE) not found"; \
+		echo "WARNING: Constraint file $(PCF_FILE) not found"; \
 		echo "Running without constraints (I/O pins will be auto-assigned)"; \
-		echo ""; \
-		echo "For timing constraints, create $(PCF_FILE) with:"; \
-		echo "  set_frequency <clock_net> <frequency_mhz>"; \
-		echo "  set_io <signal> <pin_number>"; \
 		echo "==========================="; \
 		echo ""; \
 		$(NEXTPNR_ICE40) --$(FPGA_DEVICE) --package $(FPGA_PACKAGE) \
 			--json $(ICE40_JSON) --asc $(ICE40_ASC) \
 			--report $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.json 2>&1 | tee $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.log; \
 	else \
-		echo "✓ Found PCF constraint file: $(PCF_FILE)"; \
-		if grep -q "set_frequency" "$(PCF_FILE)" 2>/dev/null; then \
-			FREQ_LINE=$$(grep "set_frequency" "$(PCF_FILE)" | head -1); \
-			echo "✓ Timing constraint found: $$FREQ_LINE"; \
-		else \
-			echo "⚠ WARNING: No timing constraints found in $(PCF_FILE)"; \
-			echo "  Add: set_frequency <clock_net> <frequency_mhz>"; \
-		fi; \
+		echo "Found PCF constraint file: $(PCF_FILE)"; \
 		echo "==========================="; \
 		echo ""; \
 		$(NEXTPNR_ICE40) --$(FPGA_DEVICE) --package $(FPGA_PACKAGE) \
@@ -488,7 +411,6 @@ ifdef NEXTPNR_ICE40
 	@echo "iCE40 place and route complete!"
 	@echo "   Device: $(FPGA_DEVICE) ($(FPGA_PACKAGE))"
 	@echo "   ASC: $(ICE40_ASC)"
-	@echo "   Report: $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.json"
 	@echo "   Log: $(REPORTS_DIR)/$(PROJECT)_ice40_pnr.log"
 else
 	@echo "ERROR: NextPNR-iCE40 not available. Install with: sudo apt install nextpnr-ice40"
@@ -507,43 +429,10 @@ ifdef ICETIME
 	fi
 	@echo "Running iCE40 timing analysis for $(FPGA_DEVICE)..."
 	@mkdir -p $(REPORTS_DIR)
-	@echo ""
-	@echo "=== TIMING ANALYSIS NOTICE ==="
-	@echo "icetime analyzes post-implementation timing without input constraints."
-	@echo "Results show ACHIEVED timing vs what was REQUESTED in PCF/SDC files."
-	@if [ -f "sources/constraints/$(TOP_MODULE).pcf" ] && grep -q "set_frequency" "sources/constraints/$(TOP_MODULE).pcf" 2>/dev/null; then \
-		REQUESTED_FREQ=$$(grep "set_frequency" "sources/constraints/$(TOP_MODULE).pcf" | awk '{print $$3}' | head -1); \
-		echo "Requested frequency: $$REQUESTED_FREQ MHz (from PCF)"; \
-	else \
-		echo "No frequency constraint found - analyzing unconstrained timing"; \
-	fi
-	@echo "=============================="
-	@echo ""
 	@icetime -d $(FPGA_DEVICE) -mtr $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt $(ICE40_ASC) 2>&1 | tee $(REPORTS_DIR)/$(PROJECT)_ice40_timing.log
 	@echo "Timing analysis complete!"
 	@echo "   Device: $(FPGA_DEVICE)"
 	@echo "   Report: $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt"
-	@echo "   Log: $(REPORTS_DIR)/$(PROJECT)_ice40_timing.log"
-	@echo ""
-	@echo "=== TIMING CONSTRAINT VERIFICATION ==="
-	@if [ -f "sources/constraints/$(TOP_MODULE).pcf" ] && grep -q "set_frequency" "sources/constraints/$(TOP_MODULE).pcf" 2>/dev/null; then \
-		REQUESTED_FREQ=$$(grep "set_frequency" "sources/constraints/$(TOP_MODULE).pcf" | awk '{print $$3}' | head -1); \
-		ACHIEVED_FREQ=$$(grep -E "Total path delay.*MHz" $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt | sed 's/.*(\(.*\) MHz).*/\1/' | head -1 2>/dev/null || echo "unknown"); \
-		echo "Requested: $$REQUESTED_FREQ MHz (from PCF constraint)"; \
-		echo "Achieved:  $$ACHIEVED_FREQ MHz (from timing analysis)"; \
-		if [ "$$ACHIEVED_FREQ" != "unknown" ]; then \
-			TIMING_MET=$$(echo "$$ACHIEVED_FREQ >= $$REQUESTED_FREQ" | bc -l 2>/dev/null || echo "0"); \
-			if [ "$$TIMING_MET" = "1" ]; then \
-				echo "✓ TIMING CONSTRAINT MET"; \
-			else \
-				echo "⚠ TIMING CONSTRAINT VIOLATED"; \
-			fi; \
-		fi; \
-	else \
-		echo "No timing constraints specified - unconstrained analysis"; \
-		grep -E "Total path delay.*MHz" $(REPORTS_DIR)/$(PROJECT)_ice40_timing.rpt | head -1 || echo "Check full report for timing details"; \
-	fi
-	@echo "====================================="
 else
 	@echo "ERROR: icetime not available. Install with: sudo apt install fpga-icestorm"
 	@exit 1
@@ -566,7 +455,6 @@ ifdef ICEPACK
 	@echo "iCE40 bitstream generation complete!"
 	@echo "   Device: $(FPGA_DEVICE)"
 	@echo "   Bitstream: $(ICE40_BIN)"
-	@echo "   Size: $(shell ls -lh $(ICE40_BIN) | awk '{print $$5}') ($(shell wc -c < $(ICE40_BIN)) bytes)"
 else
 	@echo "ERROR: icepack not available. Install with: sudo apt install fpga-icestorm"
 	@exit 1
@@ -598,19 +486,6 @@ else
 endif
 endif
 
-# === FUTURE FAMILY IMPLEMENTATIONS ===
-# Add new family targets here following the same pattern:
-# 
-# .PHONY: synth-ecp5
-# synth-ecp5: FPGA_FAMILY=ecp5
-# synth-ecp5: FPGA_DEVICE=25k
-# synth-ecp5: FPGA_PACKAGE=CABGA256
-# synth-ecp5:
-# 	@echo "ECP5 synthesis not implemented yet"
-# 	@echo "To implement: add ECP5 tool detection and synthesis logic"
-#
-# Similar for pnr-ecp5, timing-ecp5, bitstream-ecp5, prog-ecp5
-
 # === FAMILY WORKFLOW SHORTCUTS ===
 
 .PHONY: ice40
@@ -619,15 +494,11 @@ ice40: synth-ice40 pnr-ice40 timing-ice40 bitstream-ice40
 	@echo "Device: up5k (sg48)"
 	@echo "Ready to program with: make prog-ice40"
 
-# Future family shortcuts can be added here:
-# .PHONY: ecp5
-# ecp5: synth-ecp5 pnr-ecp5 timing-ecp5 bitstream-ecp5
-
 # === STATUS AND UTILITIES ===
 
 .PHONY: status
 status:
-	@echo "=== $(PROJECT) Status ==="
+	@echo "=== $(PROJECT) Status (VHDL) ==="
 	@echo "Project: $(PROJECT)"
 	@echo "Top module: $(TOP_MODULE)"
 	@echo "Testbench: $(TESTBENCH)"
@@ -636,8 +507,8 @@ status:
 	@echo "FPGA Package: $(FPGA_PACKAGE)"
 	@echo ""
 	@echo "Source files:"
-	@find $(RTL_DIR) -name "*.v" -o -name "*.sv" 2>/dev/null | wc -l | awk '{print "  RTL files: " $$1}'
-	@find $(TB_DIR) -name "*_tb.v" -o -name "tb_*.v" 2>/dev/null | wc -l | awk '{print "  Testbenches: " $$1}'
+	@find $(RTL_DIR) -name "*.vhd" -o -name "*.vhdl" 2>/dev/null | wc -l | awk '{print "  VHDL files: " $$1}'
+	@find $(TB_DIR) -name "*_tb.vhd" -o -name "*_tb.vhdl" 2>/dev/null | wc -l | awk '{print "  Testbenches: " $$1}'
 	@echo ""
 	@echo "Build status ($(FPGA_FAMILY)):"
 ifeq ($(FPGA_FAMILY),ice40)
@@ -668,11 +539,11 @@ endif
 .PHONY: clean
 clean:
 	@echo "Cleaning simulation and build outputs..."
-	rm -f $(SIM_DIR)/*.vvp
-	rm -f $(WAVE_DIR)/*.vcd $(WAVE_DIR)/*.fst $(WAVE_DIR)/*.lxt* $(WAVE_DIR)/*.gtkw
+	rm -f $(WAVE_DIR)/*.vcd $(WAVE_DIR)/*.fst $(WAVE_DIR)/*.lxt* $(WAVE_DIR)/*.ghw $(WAVE_DIR)/*.gtkw
 	rm -f $(SYNTH_DIR)/*.json $(SYNTH_DIR)/*.ys $(SYNTH_DIR)/*.v
 	rm -f $(PNR_DIR)/*.asc $(PNR_DIR)/*.config $(PNR_DIR)/*.json
 	rm -f $(BITSTREAM_DIR)/*.bin $(BITSTREAM_DIR)/*.bit $(BITSTREAM_DIR)/*.fs
+	rm -rf $(GHDL_WORK_DIR)
 	@echo "Clean complete!"
 
 .PHONY: clean-all
@@ -680,10 +551,9 @@ clean-all: clean
 	@echo "Cleaning all generated files..."
 	rm -f $(LOG_DIR)/*.log
 	rm -f $(REPORTS_DIR)/*.log $(REPORTS_DIR)/*.rpt $(REPORTS_DIR)/*.json
-	rm -rf $(SIM_DIR)/obj_dir/  # Verilator objects
 	@echo "Deep clean complete!"
 
-# Quick test target - runs simulation with existing files
+# Quick test target
 .PHONY: quick-test
 quick-test: update_list sim-waves
 	@echo "Quick test complete! Simulation finished."
@@ -694,6 +564,6 @@ all: synth pnr timing bitstream
 	@echo "Ready to program with: make prog"
 
 # Make all PHONY targets explicit
-.PHONY: synth synth-ice40 pnr pnr-ice40 timing timing-ice40 
+.PHONY: synth synth-ice40 pnr pnr-ice40 timing timing-ice40
 .PHONY: bitstream bitstream-ice40 prog prog-ice40 ice40 all
 .PHONY: clean clean-all

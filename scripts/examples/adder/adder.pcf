@@ -1,0 +1,58 @@
+# iCE40 PCF Constraints for 8-bit Adder
+# Target: iCE40UP5K-SG48 package
+
+# =============================================================================
+# TIMING CONSTRAINTS
+# =============================================================================
+
+# Primary clock frequency constraint
+# 50 MHz target frequency (conservative timing for adder design)
+# Users can modify this frequency based on their timing requirements
+set_frequency clk 50
+
+# =============================================================================
+# PIN ASSIGNMENTS - iCEBreaker board pinout
+# =============================================================================
+
+# Input operand A[7:0]
+set_io a[0] 4
+set_io a[1] 2
+set_io a[2] 47
+set_io a[3] 45
+set_io a[4] 3
+set_io a[5] 48
+set_io a[6] 46
+set_io a[7] 44
+
+# Input operand B[7:0]
+set_io b[0] 43
+set_io b[1] 38
+set_io b[2] 34
+set_io b[3] 31
+set_io b[4] 42
+set_io b[5] 36
+set_io b[6] 32
+set_io b[7] 28
+
+# Carry input
+set_io cin 20
+
+# Sum output[7:0]
+set_io sum[0] 37
+set_io sum[1] 41
+set_io sum[2] 39
+set_io sum[3] 25
+set_io sum[4] 23
+set_io sum[5] 21
+set_io sum[6] 26
+set_io sum[7] 27
+
+# Carry output
+set_io cout 18
+
+# =============================================================================
+# USAGE NOTES:
+# - Modify set_frequency to match your design requirements
+# - Pin assignments are for iCEBreaker board - modify for your target board
+# - For timing-only analysis, comment out pin assignments and use set_frequency only
+# =============================================================================
