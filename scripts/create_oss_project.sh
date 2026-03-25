@@ -11,7 +11,7 @@ echo "================================================"
 echo "Welcome to the enhanced FPGA project setup wizard!"
 
 # Check if Makefile templates exist
-if [[ ! -f "scripts/Makefile.oss.v" ]] && [[ ! -f "scripts/Makefile.oss.vhd" ]]; then
+if [[ ! -f "scripts/Makefile.oss_v" ]] && [[ ! -f "scripts/Makefile.oss_vhd" ]]; then
     echo "ERROR: Makefile templates not found in scripts/!"
     echo "Please run this script from the fpga-design-toolkit root directory."
     exit 1
@@ -148,18 +148,18 @@ echo "================================================"
 
 echo "Creating Makefile from template..."
 if [[ "$HDL_LANG" == "vhdl" ]]; then
-    if [[ -f "scripts/Makefile.oss.vhd" ]]; then
-        sed "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" "scripts/Makefile.oss.vhd" > "$PROJECT_NAME/Makefile"
+    if [[ -f "scripts/Makefile.oss_vhd" ]]; then
+        sed "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" "scripts/Makefile.oss_vhd" > "$PROJECT_NAME/Makefile"
         echo "Makefile (VHDL) created successfully"
     else
-        echo "ERROR: scripts/Makefile.oss.vhd not found!"; exit 1
+        echo "ERROR: scripts/Makefile.oss_vhd not found!"; exit 1
     fi
 else
-    if [[ -f "scripts/Makefile.oss.v" ]]; then
-        sed "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" "scripts/Makefile.oss.v" > "$PROJECT_NAME/Makefile"
+    if [[ -f "scripts/Makefile.oss_v" ]]; then
+        sed "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" "scripts/Makefile.oss_v" > "$PROJECT_NAME/Makefile"
         echo "Makefile (Verilog/SV) created successfully"
     else
-        echo "ERROR: scripts/Makefile.oss.v not found!"; exit 1
+        echo "ERROR: scripts/Makefile.oss_v not found!"; exit 1
     fi
 fi
 
