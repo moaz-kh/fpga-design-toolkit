@@ -163,6 +163,15 @@ else
     fi
 fi
 
+# Copy CLAUDE.md template into the new project
+echo "Creating CLAUDE.md..."
+if [[ -f "scripts/CLAUDE.md" ]]; then
+    cp "scripts/CLAUDE.md" "$PROJECT_NAME/CLAUDE.md"
+    echo "CLAUDE.md created successfully"
+else
+    echo "WARNING: scripts/CLAUDE.md not found — skipping"
+fi
+
 # Create .gitignore
 echo "Creating .gitignore..."
 cat > "$PROJECT_NAME/.gitignore" << 'EOF'

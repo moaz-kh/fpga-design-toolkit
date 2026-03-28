@@ -27,6 +27,7 @@ fpga-design-toolkit/
     ├── install_docker.sh
     ├── install_quartus_docker.sh
     ├── setup-usb-fpga.sh
+    ├── CLAUDE.md               # RTL coding guidelines template — copied into new OSS projects
     ├── Makefile.oss_v          # OSS Makefile template (Verilog/SV)
     ├── Makefile.oss_vhd        # OSS Makefile template (VHDL/GHDL)
     ├── Makefile.quartus
@@ -49,6 +50,7 @@ fpga-design-toolkit/
    - Language selection prompt: Verilog/SV or VHDL (chosen at creation time)
    - Copies STD_MODULES.v or STD_MODULES.vhd, copies example files from scripts/examples/
    - Sets up iCE40 constraint files, uses Makefile.oss_v or Makefile.oss_vhd template
+   - Copies scripts/CLAUDE.md into the new project root as CLAUDE.md
 
 3. **scripts/create_quartus_project.sh** - Quartus project creation:
    - Supports boards: TEI0010, DE10-Lite, DE2-115, DE10-Standard
