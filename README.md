@@ -293,7 +293,9 @@ This toolkit stands on the shoulders of giants. Huge thanks to:
 
 ## License
 
-MIT License - Use freely for personal and commercial projects. Build something awesome! 🚀
+MIT License — Copyright (c) 2026 [moaz khaled](https://github.com/moaz-kh).
+
+Free to use, modify, and distribute for any purpose. Attribution required — keep the copyright notice in all copies or substantial portions of the code.
 
 ---
 
