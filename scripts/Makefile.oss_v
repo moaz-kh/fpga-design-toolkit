@@ -211,7 +211,6 @@ endif
 	@echo "  INFO: ECP5, Intel, Xilinx tools will be checked when implemented"
 
 # === FILE LIST MANAGEMENT ===
-
 .PHONY: update_list
 update_list:
 	@echo "Updating rtl_list.f with current source files..."
@@ -220,13 +219,37 @@ update_list:
 	@echo "# Date: $(shell date)" >> $(FILELIST)
 	@echo "# Project: $(PROJECT)" >> $(FILELIST)
 	@echo "" >> $(FILELIST)
+
 	@echo "# RTL Source Files" >> $(FILELIST)
-	@find $(PWD)/$(RTL_DIR) \( -name "*.v" -o -name "*.sv" \) | sort >> $(FILELIST) 2>/dev/null || true
+	@find $(PWD)/$(RTL_DIR) \( -name "*.v" -o -name "*.sv" -o -name "*.vhd" -o -name "*.vhdl" \) | sort >> $(FILELIST) 2>/dev/null || true
+
 	@echo "" >> $(FILELIST)
 	@echo "# Testbench Files" >> $(FILELIST)
-	@find $(PWD)/$(TB_DIR) -name "*_tb.v" -o -name "*_tb.sv" -o -name "tb_*.v" -o -name "tb_*.sv" | sort >> $(FILELIST) 2>/dev/null || true
+	@find $(PWD)/$(TB_DIR) \( -name "*.v" -o -name "*.sv" \) | sort >> $(FILELIST) 2>/dev/null || true
+
 	@echo "File list updated: $(FILELIST)"
-	@echo "Found $(shell grep -c '^/' $(FILELIST) 2>/dev/null || echo 0) files"
+	@echo "Found $$(grep -c '^/' $(FILELIST) 2>/dev/null || echo 0) files"
+
+	@echo ""
+	@echo "Checking for module overrides..."
+
+	@if [ -n "$(TOP_MODULE)" ]; then \
+		echo "Updating TOP_MODULE to $(TOP_MODULE)"; \
+		sed -i "s/^TOP_MODULE[[:space:]]*[:?]*=.*/TOP_MODULE ?= $(TOP_MODULE)/" Makefile; \
+	else \
+		echo "TOP_MODULE not provided (keeping existing)"; \
+	fi
+
+	@if [ -n "$(TESTBENCH)" ]; then \
+		echo "Updating TESTBENCH to $(TESTBENCH)"; \
+		sed -i "s/^TESTBENCH[[:space:]]*[:?]*=.*/TESTBENCH ?= $(TESTBENCH)/" Makefile; \
+	else \
+		echo "TESTBENCH not provided (keeping existing)"; \
+	fi
+\
+
+
+
 
 .PHONY: list-modules
 list-modules:
