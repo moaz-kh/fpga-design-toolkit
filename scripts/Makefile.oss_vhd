@@ -195,12 +195,12 @@ update_list:
 	@echo "# Project: $(PROJECT)" >> $(FILELIST)
 	@echo "" >> $(FILELIST)
 	@echo "# RTL Source Files" >> $(FILELIST)
-	@find $(PWD)/$(RTL_DIR) -name "*.vhd" -o -name "*.vhdl" | sort >> $(FILELIST) 2>/dev/null || true
+	@find $(RTL_DIR) -name "*.vhd" -o -name "*.vhdl" | sort >> $(FILELIST) 2>/dev/null || true
 	@echo "" >> $(FILELIST)
 	@echo "# Testbench Files" >> $(FILELIST)
-	@find $(PWD)/$(TB_DIR) \( -name "*_tb.vhd" -o -name "*_tb.vhdl" -o -name "tb_*.vhd" -o -name "tb_*.vhdl" \) | sort >> $(FILELIST) 2>/dev/null || true
+	@find $(TB_DIR) \( -name "*_tb.vhd" -o -name "*_tb.vhdl" -o -name "tb_*.vhd" -o -name "tb_*.vhdl" \) | sort >> $(FILELIST) 2>/dev/null || true
 	@echo "File list updated: $(FILELIST)"
-	@echo "Found $(shell grep -c '^/' $(FILELIST) 2>/dev/null || echo 0) files"
+	@echo "Found $$(grep -c '^[^#[:space:]]' $(FILELIST) 2>/dev/null || echo 0) files"
 
 .PHONY: list-modules
 list-modules:
@@ -229,11 +229,11 @@ sim:
 	@if [ -z "$(GHDL)" ]; then \
 		echo "ERROR: GHDL not found. Should be bundled in OSS CAD Suite."; exit 1; \
 	fi
-	@if [ ! -s "$(FILELIST)" ] || ! grep -q "^/" "$(FILELIST)"; then \
+	@if [ ! -s "$(FILELIST)" ] || ! grep -q '^[^#[:space:]]' "$(FILELIST)"; then \
 		echo "ERROR: No source files in $(FILELIST). Run 'make update_list' first."; exit 1; \
 	fi
 	@mkdir -p $(SIM_DIR) $(WAVE_DIR) $(LOG_DIR) $(GHDL_WORK_DIR)
-	@ALL_VHDL=$$(grep '^/' $(FILELIST) | grep '\.\(vhd\|vhdl\)$$'); \
+	@ALL_VHDL=$$(grep '^[^#[:space:]]' $(FILELIST) | grep '\.\(vhd\|vhdl\)$$'); \
 	if [ -z "$$ALL_VHDL" ]; then echo "ERROR: No VHDL files in $(FILELIST)"; exit 1; fi; \
 	echo "Analyzing VHDL files..."; \
 	$(GHDL) -a --std=08 --workdir=$(GHDL_WORK_DIR) $$ALL_VHDL
@@ -350,10 +350,10 @@ ifdef YOSYS
 	@if [ -z "$(GHDL)" ]; then \
 		echo "ERROR: GHDL not found - required for VHDL synthesis."; exit 1; \
 	fi
-	@if [ ! -s "$(FILELIST)" ] || ! grep -q "^/" "$(FILELIST)"; then \
+	@if [ ! -s "$(FILELIST)" ] || ! grep -q '^[^#[:space:]]' "$(FILELIST)"; then \
 		echo "ERROR: File list is empty. Run 'make update_list' first."; exit 1; \
 	fi
-	@VHDL_FILES=$$(sed '/# Testbench Files/q' $(FILELIST) | grep '^/' | \
+	@VHDL_FILES=$$(sed '/# Testbench Files/q' $(FILELIST) | grep '^[^#[:space:]]' | \
 		grep '\.\(vhd\|vhdl\)$$' | tr '\n' ' '); \
 	echo "# VHDL synthesis via ghdl-yosys-plugin" > $(SYNTH_DIR)/yosys_script_ice40.ys; \
 	echo "ghdl --std=08 --work=work $$VHDL_FILES -e $(TOP_MODULE)" \
