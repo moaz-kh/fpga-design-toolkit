@@ -85,6 +85,18 @@ make ice40         # Complete FPGA flow
 make prog-ice40    # Program device
 ```
 
+**Working with multiple modules:** Run `make update_list` once with your module names and all future commands remember them automatically:
+```bash
+# One-time setup — saves TOP_MODULE and TESTBENCH to sources/.proj_config
+make update_list TOP_MODULE=uart_tx TESTBENCH=uart_tx_tb
+
+# All subsequent commands just work — no need to retype names
+make sim
+make sim-waves
+make synth-ice40
+```
+You can still override anytime: `make sim TOP_MODULE=other_module`
+
 **Quartus Toolchain:**
 ```bash
 make quartus-all   # Complete flow (map → fit → asm)
