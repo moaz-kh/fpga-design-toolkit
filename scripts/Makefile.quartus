@@ -142,7 +142,7 @@ ifdef OPENFPGALOADER
 else
 	@echo "  ERROR: openFPGALoader not found - required for FPGA programming"
 	@echo "         Install with OSS CAD Suite or build from source"
-	@echo "         Expected in: ~/fpga_workspace/oss-cad-suite/bin/"
+	@echo "         Expected in: ~/.fpga-tool-kit_OSS_tools/oss-cad-suite/bin/"
 endif
 	@echo ""
 
@@ -401,7 +401,7 @@ ifndef OPENFPGALOADER
 	@echo ""
 	@echo "openFPGALoader is required for FPGA programming (included in OSS CAD Suite)."
 	@echo "Please ensure OSS CAD Suite is installed and in PATH:"
-	@echo "  export PATH=\$$HOME/fpga_workspace/oss-cad-suite/bin:\$$PATH"
+	@echo "  export PATH=\$$HOME/.fpga-tool-kit_OSS_tools/oss-cad-suite/bin:\$$PATH"
 	@echo ""
 	@echo "Or install OSS CAD Suite: ./install_fpga_tools.sh"
 	@exit 1

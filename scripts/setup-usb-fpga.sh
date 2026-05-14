@@ -346,7 +346,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             print_warning "openFPGALoader not found in PATH"
             echo ""
             echo "Add it to your PATH:"
-            echo "  export PATH=\$HOME/fpga_workspace/oss-cad-suite/bin:\$PATH"
+            echo "  export PATH=\$HOME/.fpga-tool-kit_OSS_tools/oss-cad-suite/bin:\$PATH"
         fi
     fi
 else
