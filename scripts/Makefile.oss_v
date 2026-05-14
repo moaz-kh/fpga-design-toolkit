@@ -221,7 +221,7 @@ update_list:
 	@echo "" >> $(FILELIST)
 
 	@echo "# RTL Source Files" >> $(FILELIST)
-	@find $(RTL_DIR) \( -name "*.v" -o -name "*.sv" -o -name "*.vhd" -o -name "*.vhdl" \) | sort >> $(FILELIST) 2>/dev/null || true
+	@find $(RTL_DIR) \( -name "*.v" -o -name "*.sv" \) | sort >> $(FILELIST) 2>/dev/null || true
 
 	@echo "" >> $(FILELIST)
 	@echo "# Testbench Files" >> $(FILELIST)
