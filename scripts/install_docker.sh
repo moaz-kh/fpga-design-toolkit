@@ -108,7 +108,8 @@ install_docker_ce() {
 
     # Add Docker's official GPG key
     print_info "Adding Docker GPG key..."
-    if ! curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg; then
+    local os_id=$(. /etc/os-release && echo "$ID")
+    if ! curl -fsSL https://download.docker.com/linux/${os_id}/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg; then
         print_error "Failed to add Docker GPG key"
         return 1
     fi
@@ -117,7 +118,7 @@ install_docker_ce() {
     print_info "Adding Docker repository..."
     local arch=$(dpkg --print-architecture)
     local codename=$(lsb_release -cs)
-    echo "deb [arch=$arch signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $codename stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    echo "deb [arch=$arch signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/${os_id} $codename stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
     # Update package list with new repository
     print_info "Updating package list with Docker repository..."
