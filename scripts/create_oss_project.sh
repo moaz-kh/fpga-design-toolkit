@@ -273,64 +273,50 @@ fi
 # Create .gitignore
 echo "Creating .gitignore..."
 cat > "$PROJECT_NAME/.gitignore" << 'EOF'
-# === FPGA Build Artifacts ===
-# Simulation files (Icarus Verilog)
-sim/*.vvp
+# Simulation artefacts
+*.vvp
 sim/*_sim
-sim/waves/*.vcd
-sim/waves/*.fst
-sim/waves/*.lxt*
-sim/waves/*.ghw
+*.vcd
+*.fst
+*.lxt
+*.lxt2
+*.gtkw
+*.ghw
 sim/logs/*.log
+sim/ghdl_work/
 
-# Synthesis outputs (Yosys)
+# Synthesis / PnR / bitstream artefacts
 backend/synth/*.json
+backend/synth/*.v
 backend/synth/*.ys
-backend/synth/*_synth.v
-
-# Place & Route outputs (NextPNR)
 backend/pnr/*.asc
 backend/pnr/*.config
 backend/pnr/*.json
-
-# Bitstream files
 backend/bitstream/*.bin
 backend/bitstream/*.bit
 backend/bitstream/*.fs
-
-# Reports and logs
 backend/reports/*.log
 backend/reports/*.rpt
 backend/reports/*.json
 
-# Verilator outputs (if used)
+# Verilator outputs
 sim/obj_dir/
 *.d
 
-# === Development Files ===
-# Temporary files
-*.tmp
-*.bak
-*~
+# Auto-generated file lists
+sources/rtl_list.f
 
-# Editor specific
-*.swp
-*.swo
-.vscode/
-.idea/
-*.sublime-*
-
-# OS specific
+# OS / editor noise
 .DS_Store
 Thumbs.db
 *.directory
-
-# === Project Specific ===
-# Auto-generated file lists (should be regenerated)
-sources/rtl_list.f
-
-# GHDL work directory (VHDL projects only)
-sim/ghdl_work/
+*.swp
+*.swo
+*~
+*.tmp
+*.bak
+.idea/
+*.sublime-*
 EOF
 
 # Create README.md
