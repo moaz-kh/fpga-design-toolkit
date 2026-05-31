@@ -98,7 +98,7 @@ The same override syntax applies to any target that invokes simulation or synthe
 
 ## Standard Modules Library
 
-These modules are already available in `STD_MODULES.v` / `STD_MODULES.vhd` — do not re-implement them:
+These modules are already available in `STD_MODULES.sv` / `STD_MODULES.vhd` — do not re-implement them:
 
 | Module                  | Purpose |
 |-------------------------|---------|

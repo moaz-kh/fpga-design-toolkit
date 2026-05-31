@@ -342,7 +342,7 @@ Enhanced FPGA project with comprehensive simulation and verification capabilitie
 $PROJECT_NAME/
 ├── sources/           # Source code
 │   ├── rtl/          # RTL source files (.v, .sv)
-│   │   └── STD_MODULES.v  # Standard utility modules
+│   │   └── STD_MODULES.sv  # Standard utility modules
 │   ├── tb/           # Testbenches
 │   ├── include/      # Include files and headers
 │   ├── constraints/  # Timing/pin constraints (.pcf, .xdc)
@@ -405,13 +405,13 @@ This will:
 - Open waveforms in GTKWave
 
 ### 3. Use standard modules
-\`\`\`verilog
+\`\`\`systemverilog
 // Example: Use synchronizer in your design
-synchronizer #(.WIDTH(8)) sync_inst (
-    .i_clk(clk),
-    .i_rst_n(rst_n),
-    .d_in(async_signal),
-    .d_out(sync_signal)
+synchronizer #(.WIDTH(8)) u_sync (
+    .i_clk   (i_clk),
+    .i_rst_n (i_rst_n),
+    .i_data  (async_signal),
+    .o_data  (sync_signal)
 );
 \`\`\`
 
@@ -546,13 +546,13 @@ if [[ "$HDL_LANG" == "vhdl" ]]; then
         echo "WARNING: scripts/examples/STD_MODULES.vhd not found"
     fi
 else
-    if [[ -f "scripts/examples/STD_MODULES.v" ]]; then
-        echo "Copying STD_MODULES.v to sources/rtl/..."
-        cp "scripts/examples/STD_MODULES.v" "$PROJECT_NAME/sources/rtl/"
-        echo "STD_MODULES.v copied successfully"
+    if [[ -f "scripts/examples/STD_MODULES.sv" ]]; then
+        echo "Copying STD_MODULES.sv to sources/rtl/..."
+        cp "scripts/examples/STD_MODULES.sv" "$PROJECT_NAME/sources/rtl/"
+        echo "STD_MODULES.sv copied successfully"
         echo "   Available modules: synchronizer, edge_detector, LED_logic, spi_interface_debounce"
     else
-        echo "WARNING: scripts/examples/STD_MODULES.v not found"
+        echo "WARNING: scripts/examples/STD_MODULES.sv not found"
     fi
 fi
 
@@ -640,10 +640,10 @@ if [[ "$HDL_LANG" == "vhdl" ]]; then
         echo "OK: adder.pcf - iCE40 constraint file"
     fi
 else
-    if [[ -f "$PROJECT_NAME/sources/rtl/STD_MODULES.v" ]]; then
-        echo "OK: STD_MODULES.v - Standard utility modules"
+    if [[ -f "$PROJECT_NAME/sources/rtl/STD_MODULES.sv" ]]; then
+        echo "OK: STD_MODULES.sv - Standard utility modules"
     else
-        echo "WARNING: STD_MODULES.v - Not available (file not found)"
+        echo "WARNING: STD_MODULES.sv - Not available (file not found)"
     fi
     if [[ "$EXAMPLE_CREATED" == "true" ]]; then
         echo "OK: adder.v - Example 8-bit adder"
@@ -654,7 +654,7 @@ fi
 
 echo
 echo "Standard Modules Available:"
-if [[ -f "$PROJECT_NAME/sources/rtl/STD_MODULES.v" ]]; then
+if [[ -f "$PROJECT_NAME/sources/rtl/STD_MODULES.sv" ]]; then
     echo "  • synchronizer - Multi-bit clock domain crossing"
     echo "  • edge_detector - Positive/negative edge detection"  
     echo "  • LED_logic - Configurable LED blinker"
@@ -669,11 +669,11 @@ if [[ "$EXAMPLE_CREATED" == "true" ]]; then
     echo "  3. make status           # Check project status"
     echo "  4. View waveforms in GTKWave"
     echo "  5. Ready for NextPNR place & route with adder.pcf!"
-    echo "  6. Explore STD_MODULES.v for ready-to-use components"
+    echo "  6. Explore STD_MODULES.sv for ready-to-use components"
 else
     echo "  1. cd $PROJECT_NAME"
     echo "  2. Create your RTL files in sources/rtl/"
-    echo "  3. Use modules from STD_MODULES.v in your designs"
+    echo "  3. Use modules from STD_MODULES.sv in your designs"
     echo "  4. Create your testbenches in sources/tb/"
     echo "  5. make update_list      # Update file list"
     echo "  6. make sim-waves        # Run simulation"
@@ -690,7 +690,7 @@ echo
 echo "Documentation:"
 echo "  README.md contains detailed workflow instructions"
 echo "  Makefile has comprehensive help: make help"
-echo "  STD_MODULES.v contains ready-to-use utility modules"
+echo "  STD_MODULES.sv contains ready-to-use utility modules"
 
 echo
 echo "Project setup complete!"
